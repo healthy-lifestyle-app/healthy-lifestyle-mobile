@@ -35,6 +35,35 @@ export default function TabLayout() {
     ),
   }}
 />
+<Tabs.Screen
+  name="exercise"
+  options={{
+    title: "Egzersiz",
+    tabBarIcon: ({ color }) => (
+      <IconSymbol size={28} name="figure.walk" color={color} />
+    ),
+  }}
+/>
+
+<Tabs.Screen
+  name="recipes"
+  options={{
+    title: "Tarifler",
+    tabBarIcon: ({ color }) => (
+      <IconSymbol size={28} name="book.fill" color={color} />
+    ),
+  }}
+/>
+
+<Tabs.Screen
+  name="profile"
+  options={{
+    title: "Profil",
+    tabBarIcon: ({ color }) => (
+      <IconSymbol size={28} name="person.fill" color={color} />
+    ),
+  }}
+/>
     </Tabs>
   );
 }
