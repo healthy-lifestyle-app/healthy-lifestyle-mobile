@@ -435,6 +435,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   progressBadge: {
+    
     width: 34,
     height: 34,
     borderRadius: 10,
