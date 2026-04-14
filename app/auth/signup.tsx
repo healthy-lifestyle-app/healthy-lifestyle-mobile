@@ -1,6 +1,15 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, Pressable } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+  ScrollView,
+} from "react-native";
 import { router } from "expo-router";
+import Button from "@/components/button";
 
 export default function Signup() {
   const [email, setEmail] = useState("");
@@ -8,53 +17,115 @@ export default function Signup() {
 
   const canSubmit = email.includes("@") && pass.length >= 6;
 
+  const handleNext = () => {
+    Keyboard.dismiss();
+
+    if (!canSubmit) return;
+
+    router.replace("/onboarding/welcome");
+  };
+
   return (
-    <View style={{ flex: 1, padding: 20, justifyContent: "center", gap: 12 }}>
-      <Text style={{ fontSize: 26, fontWeight: "900" }}>Mail ile Kayıt</Text>
-
-      <TextInput
-        value={email}
-        onChangeText={setEmail}
-        placeholder="ornek@mail.com"
-        autoCapitalize="none"
-        keyboardType="email-address"
-        style={{
-          borderWidth: 1,
-          borderColor: "rgba(0,0,0,0.15)",
-          borderRadius: 16,
-          paddingHorizontal: 14,
-          paddingVertical: 12,
-        }}
-      />
-
-      <TextInput
-        value={pass}
-        onChangeText={setPass}
-        placeholder="Şifre (min 6 karakter)"
-        secureTextEntry
-        style={{
-          borderWidth: 1,
-          borderColor: "rgba(0,0,0,0.15)",
-          borderRadius: 16,
-          paddingHorizontal: 14,
-          paddingVertical: 12,
-        }}
-      />
-
-      <Pressable
-        disabled={!canSubmit}
-        onPress={() => router.replace("/onboarding/welcome")}
-        style={{
-          marginTop: 8,
-          paddingVertical: 14,
-          borderRadius: 18,
-          alignItems: "center",
-          backgroundColor: "#2F8F4E",
-          opacity: canSubmit ? 1 : 0.5,
-        }}
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: "#FFFFFF" }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ flexGrow: 1 }}
+        showsVerticalScrollIndicator={false}
       >
-        <Text style={{ color: "white", fontWeight: "800" }}>Devam Et</Text>
-      </Pressable>
-    </View>
+        <View
+          style={{
+            flex: 1,
+            paddingHorizontal: 24,
+            paddingTop: 36,
+            paddingBottom: 24,
+            justifyContent: "space-between",
+          }}
+        >
+          <View style={{ marginTop: 24 }}>
+            <Text
+              style={{
+                fontSize: 31,
+                fontWeight: "900",
+                color: "#2B2B2B",
+                marginBottom: 8,
+              }}
+            >
+              Mail ile Kayıt 📩
+            </Text>
+
+            <Text
+              style={{
+                color: "#6F6F6F",
+                fontSize: 14,
+                lineHeight: 21,
+                marginBottom: 18,
+              }}
+            >
+              Hesabını oluşturmak için mail adresini ve şifreni gir.
+            </Text>
+
+            <View
+              style={{
+                backgroundColor: "#A8C85A",
+                borderRadius: 18,
+                padding: 10,
+                gap: 10,
+              }}
+            >
+              <TextInput
+                value={email}
+                onChangeText={setEmail}
+                placeholder="ornek@mail.com"
+                placeholderTextColor="#A7A7A7"
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="email-address"
+                returnKeyType="next"
+                style={{
+                  backgroundColor: "#FFFFFF",
+                  borderRadius: 10,
+                  paddingHorizontal: 14,
+                  paddingVertical: 11,
+                  fontSize: 14,
+                  color: "#2B2B2B",
+                }}
+              />
+
+              <TextInput
+                value={pass}
+                onChangeText={setPass}
+                placeholder="Şifre (min 6 karakter)"
+                placeholderTextColor="#A7A7A7"
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="done"
+                onSubmitEditing={Keyboard.dismiss}
+                style={{
+                  backgroundColor: "#FFFFFF",
+                  borderRadius: 10,
+                  paddingHorizontal: 14,
+                  paddingVertical: 11,
+                  fontSize: 14,
+                  color: "#2B2B2B",
+                }}
+              />
+            </View>
+          </View>
+
+          <View style={{ marginTop: 24 }}>
+            <Button
+              title="Devam et ›"
+              onPress={handleNext}
+              disabled={!canSubmit}
+              style={{ backgroundColor: "#A8C85A", borderRadius: 999 }}
+            />
+          </View>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }

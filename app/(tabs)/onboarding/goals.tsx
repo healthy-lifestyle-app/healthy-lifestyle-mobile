@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import { View, Text, Pressable } from "react-native";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -7,30 +7,57 @@ import Button from "@/components/button";
 type Goal = {
   key: string;
   label: string;
+  icon: string;
+  bgColor: string;
+  iconBg: string;
+  textColor?: string;
 };
 
 const GOALS: Goal[] = [
-  { key: "healthy", label: "Sağlıklı Yaşam" },
-  { key: "lose", label: "Kilo Vermek" },
-  { key: "gain", label: "Kilo Almak" },
-  { key: "maintain", label: "Formumu Korumak" },
-  { key: "energy", label: "Daha Enerjik Hissetmek" },
+  {
+    key: "healthy",
+    label: "Sağlıklı yaşam",
+    icon: "♡",
+    bgColor: "#C7DC78",
+    iconBg: "#EEF5D6",
+    textColor: "#FFFFFF",
+  },
+  {
+    key: "lose",
+    label: "Kilo Vermek",
+    icon: "🥗",
+    bgColor: "#F4E3C3",
+    iconBg: "#F9EFE0",
+    textColor: "#5B5B5B",
+  },
+  {
+    key: "gain",
+    label: "Kilo Almak",
+    icon: "◎",
+    bgColor: "#E7E0F7",
+    iconBg: "#F1ECFB",
+    textColor: "#6A6680",
+  },
+  {
+    key: "maintain",
+    label: "Formumu Korumak",
+    icon: "✧",
+    bgColor: "#8D81C9",
+    iconBg: "#B3A8E4",
+    textColor: "#FFFFFF",
+  },
 ];
 
 export default function Goals() {
   const [selected, setSelected] = useState<string[]>([]);
+
   const canFinish = selected.length > 0;
 
   const toggle = (key: string) => {
-    setSelected((prev) =>
-      prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]
-    );
-  };
-
-  const selectedText = useMemo(() => {
-    if (selected.length === 0) return "Henüz hedef seçmedin.";
-    return `${selected.length} hedef seçildi.`;
-  }, [selected]);
+  setSelected((prev) =>
+    prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]
+  );
+};
 
   const handleFinish = async () => {
     if (!canFinish) return;
@@ -47,61 +74,145 @@ export default function Goals() {
   };
 
   return (
-    <View style={{ flex: 1, padding: 20, justifyContent: "space-between" }}>
-      <View style={{ gap: 12, marginTop: 20 }}>
-        <Text style={{ fontSize: 28, fontWeight: "900" }}>Hedeflerin</Text>
-        <Text style={{ opacity: 0.7 }}>Birden fazla hedef seçebilirsin.</Text>
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: "#FFFFFF",
+        paddingHorizontal: 24,
+        paddingTop: 36,
+        paddingBottom: 24,
+        justifyContent: "space-between",
+      }}
+    >
+      <View style={{ marginTop: 24 }}>
+        <Text
+          style={{
+            fontSize: 20,
+            fontWeight: "800",
+            color: "#2F2F2F",
+            marginBottom: 6,
+          }}
+        >
+          Hedefin ne ?
+        </Text>
 
-        <Text style={{ fontSize: 13, opacity: 0.6 }}>{selectedText}</Text>
+        <Text
+          style={{
+            fontSize: 12,
+            color: "#6F6F6F",
+            marginBottom: 18,
+          }}
+        >
+          Birlikte çalışalım
+        </Text>
 
-        <View style={{ gap: 10, marginTop: 14 }}>
-          {GOALS.map((g) => {
-            const isOn = selected.includes(g.key);
+        <View style={{ gap: 12 }}>
+          {GOALS.map((goal) => {
+            const isSelected = selected.includes(goal.key);
+
             return (
               <Pressable
-                key={g.key}
-                onPress={() => toggle(g.key)}
+                key={goal.key}
+                onPress={() => toggle(goal.key)}
                 style={{
-                  paddingVertical: 14,
-                  paddingHorizontal: 14,
+                  minHeight: 64,
                   borderRadius: 18,
-                  borderWidth: 1,
-                  borderColor: isOn ? "#2F8F4E" : "rgba(0,0,0,0.12)",
-                  backgroundColor: isOn ? "rgba(47,143,78,0.12)" : "#FFFFFF",
+                  backgroundColor: goal.bgColor,
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
                   flexDirection: "row",
                   alignItems: "center",
-                  justifyContent: "space-between",
+                  borderWidth: isSelected ? 4 : 1,
+                  borderColor: isSelected ? "#6E9135" : "transparent",
                 }}
               >
-                <Text style={{ fontSize: 16, fontWeight: "700" }}>
-                  {g.label}
-                </Text>
-
                 <View
                   style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: 999,
-                    borderWidth: 2,
-                    borderColor: isOn ? "#2F8F4E" : "rgba(0,0,0,0.25)",
-                    backgroundColor: isOn ? "#2F8F4E" : "transparent",
+                    width: 36,
+                    height: 36,
+                    borderRadius: 12,
+                    backgroundColor: goal.iconBg,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginRight: 12,
                   }}
-                />
+                >
+                  <Text
+                    style={{
+                      fontSize: 18,
+                      color:
+                        goal.textColor === "#FFFFFF" ? "#FFFFFF" : "#7C7C7C",
+                    }}
+                  >
+                    {goal.icon}
+                  </Text>
+                </View>
+
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "700",
+                    color: goal.textColor ?? "#2B2B2B",
+                  }}
+                >
+                  {goal.label}
+                </Text>
               </Pressable>
             );
           })}
         </View>
 
-        {/* Progress (4/4) */}
-        <View style={{ flexDirection: "row", gap: 8, marginTop: 18 }}>
-          <View style={{ width: 8, height: 8, borderRadius: 99, backgroundColor: "#8EA76A" }} />
-          <View style={{ width: 8, height: 8, borderRadius: 99, backgroundColor: "#8EA76A" }} />
-          <View style={{ width: 8, height: 8, borderRadius: 99, backgroundColor: "#8EA76A" }} />
-          <View style={{ width: 8, height: 8, borderRadius: 99, backgroundColor: "#8EA76A" }} />
+        <View
+          style={{
+            flexDirection: "row",
+            gap: 8,
+            marginTop: 20,
+            justifyContent: "center",
+          }}
+        >
+          <View
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: 99,
+              backgroundColor: "#A8C85A",
+            }}
+          />
+          <View
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: 99,
+              backgroundColor: "#A8C85A",
+            }}
+          />
+          <View
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: 99,
+              backgroundColor: "#A8C85A",
+            }}
+          />
+          <View
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: 99,
+              backgroundColor: "#A8C85A",
+            }}
+          />
         </View>
       </View>
 
-      <Button title="Bitir ✓" onPress={handleFinish} disabled={!canFinish} />
+      <View style={{ marginTop: 24 }}>
+        <Button
+          title="Devam et ›"
+          onPress={handleFinish}
+          disabled={!canFinish}
+          style={{ backgroundColor: "#A8C85A", borderRadius: 999 }}
+        />
+      </View>
     </View>
   );
 }

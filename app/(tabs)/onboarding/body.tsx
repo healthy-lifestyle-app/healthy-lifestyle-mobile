@@ -1,5 +1,13 @@
 import React, { useState } from "react";
-import { View, Text, TextInput } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+  ScrollView,
+} from "react-native";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Button from "@/components/button";
@@ -11,6 +19,8 @@ export default function Body() {
   const canNext = Number(height) > 0 && Number(weight) > 0;
 
   const handleNext = async () => {
+    Keyboard.dismiss();
+
     if (!canNext) return;
 
     const raw = await AsyncStorage.getItem("onboarding_profile");
@@ -25,86 +35,145 @@ export default function Body() {
   };
 
   return (
-    <View style={{ flex: 1, padding: 20, justifyContent: "space-between" }}>
-      <View style={{ gap: 12, marginTop: 20 }}>
-        <Text style={{ fontSize: 28, fontWeight: "900" }}>
-          Vücut Bilgilerin
-        </Text>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: "#FFFFFF" }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ flexGrow: 1 }}
+        showsVerticalScrollIndicator={false}
+      >
+        <View
+          style={{
+            flex: 1,
+            paddingHorizontal: 24,
+            paddingTop: 36,
+            paddingBottom: 24,
+            justifyContent: "space-between",
+          }}
+        >
+          <View style={{ marginTop: 24 }}>
+            <Text
+              style={{
+                fontSize: 31,
+                fontWeight: "900",
+                color: "#2B2B2B",
+                marginBottom: 8,
+              }}
+            >
+              Vücut Bilgilerin 📏
+            </Text>
 
-        <Text style={{ opacity: 0.7 }}>
-          Sana uygun hedefleri belirlemek için boy ve kilonu alalım.
-        </Text>
+            <Text
+              style={{
+                color: "#6F6F6F",
+                fontSize: 14,
+                lineHeight: 21,
+                marginBottom: 18,
+              }}
+            >
+              Sana uygun hedefleri belirlemek için boy ve kilonu alalım.
+            </Text>
 
-        <View style={{ gap: 8, marginTop: 14 }}>
-          <Text style={{ fontWeight: "700" }}>Boy (cm)</Text>
-          <TextInput
-            value={height}
-            onChangeText={setHeight}
-            placeholder="Örn: 170"
-            keyboardType="number-pad"
-            style={{
-              borderWidth: 1,
-              borderColor: "rgba(0,0,0,0.15)",
-              borderRadius: 16,
-              paddingHorizontal: 14,
-              paddingVertical: 12,
-            }}
-          />
+            <View
+              style={{
+                backgroundColor: "#A8C85A",
+                borderRadius: 18,
+                padding: 10,
+                gap: 10,
+              }}
+            >
+              <TextInput
+                value={height}
+                onChangeText={setHeight}
+                placeholder="Boyun (cm)"
+                placeholderTextColor="#A7A7A7"
+                keyboardType="number-pad"
+                returnKeyType="done"
+                onSubmitEditing={Keyboard.dismiss}
+                style={{
+                  backgroundColor: "#FFFFFF",
+                  borderRadius: 10,
+                  paddingHorizontal: 14,
+                  paddingVertical: 11,
+                  fontSize: 14,
+                  color: "#2B2B2B",
+                }}
+              />
 
-          <Text style={{ fontWeight: "700", marginTop: 10 }}>Kilo (kg)</Text>
-          <TextInput
-            value={weight}
-            onChangeText={setWeight}
-            placeholder="Örn: 65"
-            keyboardType="number-pad"
-            style={{
-              borderWidth: 1,
-              borderColor: "rgba(0,0,0,0.15)",
-              borderRadius: 16,
-              paddingHorizontal: 14,
-              paddingVertical: 12,
-            }}
-          />
+              <TextInput
+                value={weight}
+                onChangeText={setWeight}
+                placeholder="Kilon (kg)"
+                placeholderTextColor="#A7A7A7"
+                keyboardType="number-pad"
+                returnKeyType="done"
+                onSubmitEditing={Keyboard.dismiss}
+                style={{
+                  backgroundColor: "#FFFFFF",
+                  borderRadius: 10,
+                  paddingHorizontal: 14,
+                  paddingVertical: 11,
+                  fontSize: 14,
+                  color: "#2B2B2B",
+                }}
+              />
+            </View>
+
+            <View
+              style={{
+                flexDirection: "row",
+                gap: 8,
+                marginTop: 18,
+                justifyContent: "center",
+              }}
+            >
+              <View
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: 99,
+                  backgroundColor: "#A8C85A",
+                }}
+              />
+              <View
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: 99,
+                  backgroundColor: "#A8C85A",
+                }}
+              />
+              <View
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: 99,
+                  backgroundColor: "#A8C85A",
+                }}
+              />
+              <View
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: 99,
+                  backgroundColor: "#D9D9D9",
+                }}
+              />
+            </View>
+          </View>
+
+          <View style={{ marginTop: 24 }}>
+            <Button
+              title="Devam et ›"
+              onPress={handleNext}
+              disabled={!canNext}
+              style={{ backgroundColor: "#A8C85A", borderRadius: 999 }}
+            />
+          </View>
         </View>
-
-        {/* Progress (3/4) */}
-        <View style={{ flexDirection: "row", gap: 8, marginTop: 18 }}>
-          <View
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: 99,
-              backgroundColor: "#8EA76A",
-            }}
-          />
-          <View
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: 99,
-              backgroundColor: "#8EA76A",
-            }}
-          />
-          <View
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: 99,
-              backgroundColor: "#8EA76A",
-            }}
-          />
-          <View
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: 99,
-              backgroundColor: "rgba(0,0,0,0.15)",
-            }}
-          />
-        </View>
-      </View>
-
-      <Button title="Devam Et →" onPress={handleNext} disabled={!canNext} />
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
