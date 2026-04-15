@@ -15,8 +15,10 @@ import Button from "@/components/button";
 export default function Body() {
   const [height, setHeight] = useState("");
   const [weight, setWeight] = useState("");
+  const [targetWeight, setTargetWeight] = useState("");
 
-  const canNext = Number(height) > 0 && Number(weight) > 0;
+  const canNext =
+    Number(height) > 0 && Number(weight) > 0 && Number(targetWeight) > 0;
 
   const handleNext = async () => {
     Keyboard.dismiss();
@@ -28,6 +30,7 @@ export default function Body() {
 
     profile.height = Number(height);
     profile.weight = Number(weight);
+    profile.targetWeight = Number(targetWeight);
 
     await AsyncStorage.setItem("onboarding_profile", JSON.stringify(profile));
 
@@ -73,7 +76,7 @@ export default function Body() {
                 marginBottom: 18,
               }}
             >
-              Sana uygun hedefleri belirlemek için boy ve kilonu alalım.
+              Sağlıklı hedefler belirlemek için boy, kilo ve hedef kilonu alalım.
             </Text>
 
             <View
@@ -87,7 +90,7 @@ export default function Body() {
               <TextInput
                 value={height}
                 onChangeText={setHeight}
-                placeholder="Boyun (cm)"
+                placeholder="Boy (cm)"
                 placeholderTextColor="#A7A7A7"
                 keyboardType="number-pad"
                 returnKeyType="done"
@@ -105,7 +108,25 @@ export default function Body() {
               <TextInput
                 value={weight}
                 onChangeText={setWeight}
-                placeholder="Kilon (kg)"
+                placeholder="Kilo (kg)"
+                placeholderTextColor="#A7A7A7"
+                keyboardType="number-pad"
+                returnKeyType="done"
+                onSubmitEditing={Keyboard.dismiss}
+                style={{
+                  backgroundColor: "#FFFFFF",
+                  borderRadius: 10,
+                  paddingHorizontal: 14,
+                  paddingVertical: 11,
+                  fontSize: 14,
+                  color: "#2B2B2B",
+                }}
+              />
+
+              <TextInput
+                value={targetWeight}
+                onChangeText={setTargetWeight}
+                placeholder="Hedef Kilo (kg)"
                 placeholderTextColor="#A7A7A7"
                 keyboardType="number-pad"
                 returnKeyType="done"

@@ -5,9 +5,10 @@ import { router } from "expo-router";
 
 type OnboardingProfile = {
   name?: string;
-  age?: string;
-  height?: string;
-  weight?: string;
+  age?: number;
+  height?: number;
+  weight?: number;
+  targetWeight?: number;
   goals?: string[];
 };
 
