@@ -8,7 +8,7 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 
 const COLORS = {
   background: '#F8F6EC',
@@ -149,7 +149,11 @@ function MealCard({
   foods: string[];
 }) {
   return (
-    <View style={[styles.mealCard, { backgroundColor: bg, borderColor: border }]}>
+    <TouchableOpacity
+      activeOpacity={0.9}
+      style={[styles.mealCard, { backgroundColor: bg, borderColor: border }]}
+      onPress={() => router.push(`/nutrition/add-meal?meal=${mealKey}`)}
+    >
       <View style={styles.mealHeader}>
         <View>
           <Text style={styles.mealTitle}>{title}</Text>
@@ -158,14 +162,6 @@ function MealCard({
             <Text style={styles.mealCaloriesMuted}> / {target} kcal</Text>
           </Text>
         </View>
-
-        <TouchableOpacity
-          activeOpacity={0.85}
-          style={[styles.addIconButton, { backgroundColor: accent }]}
-          onPress={() => router.push(`/nutrition/add-meal?meal=${mealKey}`)}
-        >
-          <Ionicons name="add" size={20} color={COLORS.white} />
-        </TouchableOpacity>
       </View>
 
       <ProgressBar progress={consumed / target} />
@@ -177,7 +173,7 @@ function MealCard({
           </View>
         ))}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -194,7 +190,7 @@ export default function NutritionScreen() {
       >
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} activeOpacity={0.85}>
-            <Ionicons name="chevron-back" size={20} color={COLORS.text} />
+            <Ionicons name='chevron-back' size={20} color={COLORS.text} />
           </TouchableOpacity>
 
           <View>
@@ -226,21 +222,21 @@ export default function NutritionScreen() {
           <MacroCard
             value={summary.carbs.value}
             target={summary.carbs.target}
-            label="Karbonhidrat"
+            label='Karbonhidrat'
             color={COLORS.green}
             bg={COLORS.greenSoft}
           />
           <MacroCard
             value={summary.protein.value}
             target={summary.protein.target}
-            label="Protein"
+            label='Protein'
             color={COLORS.primary}
             bg={COLORS.purpleSoft}
           />
           <MacroCard
             value={summary.fat.value}
             target={summary.fat.target}
-            label="Yağ"
+            label='Yağ'
             color={COLORS.yellow}
             bg={COLORS.yellowSoft}
           />
@@ -252,7 +248,7 @@ export default function NutritionScreen() {
             activeOpacity={0.85}
             onPress={() => router.push('/nutrition/add-meal')}
           >
-            <Ionicons name="add" size={18} color={COLORS.primary} />
+            <Ionicons name='add' size={18} color={COLORS.primary} />
             <Text style={styles.outlineActionText}>Besin Ekle</Text>
           </TouchableOpacity>
 
@@ -261,7 +257,7 @@ export default function NutritionScreen() {
             activeOpacity={0.85}
             onPress={() => router.push('/nutrition/scan')}
           >
-            <Ionicons name="camera-outline" size={18} color={COLORS.orange} />
+            <Ionicons name='camera-outline' size={18} color={COLORS.orange} />
             <Text style={styles.photoActionText}>Foto Kalori</Text>
           </TouchableOpacity>
         </View>
@@ -272,10 +268,6 @@ export default function NutritionScreen() {
           ))}
         </View>
       </ScrollView>
-
-      <TouchableOpacity style={styles.chatButton} activeOpacity={0.85}>
-        <MaterialCommunityIcons name="robot-happy-outline" size={26} color="#6E8B3D" />
-      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -474,13 +466,6 @@ const styles = StyleSheet.create({
     color: '#7C8290',
     fontWeight: '600',
   },
-  addIconButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   foodTagsWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -497,24 +482,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#5D6380',
-  },
-
-  chatButton: {
-    position: 'absolute',
-    right: 18,
-    bottom: 88,
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: '#DDF0BF',
-    borderWidth: 1,
-    borderColor: '#A8C85A',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.14,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 5,
   },
 });

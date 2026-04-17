@@ -1,24 +1,22 @@
-import React, { useMemo, useState } from 'react';
+import React from 'react';
 import {
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 const COLORS = {
   background: '#F8F6EC',
-  overlay: 'rgba(28, 24, 45, 0.18)',
-  sheet: '#F8F7FB',
-  text: '#222532',
-  muted: '#7C8393',
+  card: '#F3F1F8',
+  text: '#1F2430',
+  muted: '#7E8695',
   primary: '#5E578F',
-  border: '#E3DEEF',
+  primaryLight: '#D8D4E8',
   green: '#A8C85A',
   greenSoft: '#EEF5DE',
   yellow: '#F2CF7B',
@@ -27,255 +25,249 @@ const COLORS = {
   purpleSoft: '#F0EDFA',
   orange: '#FF6B1A',
   orangeSoft: '#FDE5DA',
+  border: '#E6E2F0',
   white: '#FFFFFF',
 };
 
-const mealOptions = [
-  { key: 'breakfast', label: 'Kahvaltı', color: COLORS.green, bg: COLORS.greenSoft },
-  { key: 'lunch', label: 'Öğle', color: COLORS.yellow, bg: COLORS.yellowSoft },
-  { key: 'dinner', label: 'Akşam', color: '#B7B1E2', bg: COLORS.purpleSoft },
-  { key: 'snack', label: 'Atıştırma', color: COLORS.orange, bg: COLORS.orangeSoft },
-];
-
-const foodLibraryByMeal: Record<
-  string,
-  { id: string; name: string; kcal: number }[]
-> = {
-  breakfast: [
-    { id: '1', name: 'Yumurta', kcal: 155 },
-    { id: '2', name: 'Avokado', kcal: 160 },
-    { id: '3', name: 'Tam buğday ekmeği', kcal: 80 },
-    { id: '4', name: 'Tavuk göğsü', kcal: 165 },
-    { id: '5', name: 'Somon', kcal: 208 },
-    { id: '6', name: 'Quinoa', kcal: 120 },
-    { id: '7', name: 'Brokoli', kcal: 55 },
-    { id: '8', name: 'Badem', kcal: 160 },
-    { id: '9', name: 'Yoğurt', kcal: 100 },
-    { id: '10', name: 'Elma', kcal: 95 },
-  ],
-  lunch: [
-    { id: '11', name: 'Tavuk salatası', kcal: 220 },
-    { id: '12', name: 'Quinoa', kcal: 120 },
-    { id: '13', name: 'Sebzeler', kcal: 60 },
-    { id: '14', name: 'Yoğurt', kcal: 100 },
-    { id: '15', name: 'Pirinç', kcal: 130 },
-    { id: '16', name: 'Izgara tavuk', kcal: 185 },
-    { id: '17', name: 'Mercimek', kcal: 116 },
-    { id: '18', name: 'Ayran', kcal: 75 },
-  ],
-  dinner: [
-    { id: '19', name: 'Somon', kcal: 208 },
-    { id: '20', name: 'Buharda sebze', kcal: 90 },
-    { id: '21', name: 'Zeytinyağlı salata', kcal: 110 },
-    { id: '22', name: 'Yoğurt', kcal: 100 },
-    { id: '23', name: 'Çorba', kcal: 140 },
-    { id: '24', name: 'Izgara köfte', kcal: 240 },
-    { id: '25', name: 'Bulgur', kcal: 150 },
-    { id: '26', name: 'Kabuklu badem', kcal: 160 },
-  ],
-  snack: [
-    { id: '27', name: 'Muz', kcal: 105 },
-    { id: '28', name: 'Havuç', kcal: 25 },
-    { id: '29', name: 'Pirinç', kcal: 130 },
-    { id: '30', name: 'Makarna', kcal: 158 },
-    { id: '31', name: 'Peynir', kcal: 113 },
-    { id: '32', name: 'Süt', kcal: 61 },
-    { id: '33', name: 'Portakal', kcal: 62 },
-    { id: '34', name: 'Çilek', kcal: 32 },
-    { id: '35', name: 'Ceviz', kcal: 185 },
-    { id: '36', name: 'Zeytin', kcal: 115 },
-  ],
+const summary = {
+  consumed: 1630,
+  target: 2000,
+  carbs: { value: 45, target: 60 },
+  protein: { value: 85, target: 120 },
+  fat: { value: 35, target: 50 },
 };
 
-export default function AddMealScreen() {
-  const params = useLocalSearchParams<{ meal?: string }>();
-  const initialMeal = typeof params.meal === 'string' ? params.meal : '';
+const meals = [
+  {
+    key: 'breakfast',
+    title: 'Kahvaltı',
+    consumed: 450,
+    target: 500,
+    bg: '#EEF5DE',
+    border: '#A8C85A',
+    accent: '#A8C85A',
+    foods: ['Yumurta', 'Avokado', 'Tam buğday ekmeği'],
+  },
+  {
+    key: 'lunch',
+    title: 'Öğle',
+    consumed: 620,
+    target: 700,
+    bg: '#FFF4DA',
+    border: '#F2CF7B',
+    accent: '#F2CF7B',
+    foods: ['Tavuk salatası', 'Quinoa', 'Sebzeler'],
+  },
+  {
+    key: 'dinner',
+    title: 'Akşam',
+    consumed: 380,
+    target: 600,
+    bg: '#F0EDFA',
+    border: '#C9C3EA',
+    accent: '#C9C3EA',
+    foods: ['Somon', 'Buharda sebze'],
+  },
+  {
+    key: 'snack',
+    title: 'Atıştırma',
+    consumed: 180,
+    target: 200,
+    bg: '#FDE5DA',
+    border: '#FFB38F',
+    accent: '#FF6B1A',
+    foods: ['Badem', 'Meyve'],
+  },
+];
 
-  const [selectedMeal, setSelectedMeal] = useState<string | null>(
-    initialMeal || null,
+function ProgressBar({
+  progress,
+  color = COLORS.primary,
+  trackColor = COLORS.primaryLight,
+  height = 8,
+}: {
+  progress: number;
+  color?: string;
+  trackColor?: string;
+  height?: number;
+}) {
+  return (
+    <View style={[styles.progressTrack, { backgroundColor: trackColor, height }]}>
+      <View
+        style={[
+          styles.progressFill,
+          {
+            backgroundColor: color,
+            width: `${Math.min(progress * 100, 100)}%`,
+            height,
+          },
+        ]}
+      />
+    </View>
   );
-  const [search, setSearch] = useState('');
-  const [selectedFoodIds, setSelectedFoodIds] = useState<string[]>([]);
+}
 
-  const selectedMealMeta = mealOptions.find((item) => item.key === selectedMeal);
+function MacroCard({
+  value,
+  target,
+  label,
+  color,
+  bg,
+}: {
+  value: number;
+  target: number;
+  label: string;
+  color: string;
+  bg: string;
+}) {
+  return (
+    <View style={[styles.macroCard, { backgroundColor: bg, borderColor: color }]}>
+      <Text style={[styles.macroValue, { color }]}>{value}g</Text>
+      <Text style={styles.macroTarget}>/ {target}g</Text>
+      <Text style={styles.macroLabel}>{label}</Text>
+    </View>
+  );
+}
 
-  const foods = useMemo(() => {
-    if (!selectedMeal) return [];
-    const baseList = foodLibraryByMeal[selectedMeal] ?? [];
-    const keyword = search.trim().toLowerCase();
+function MealCard({
+  mealKey,
+  title,
+  consumed,
+  target,
+  bg,
+  border,
+  accent,
+  foods,
+}: {
+  mealKey: string;
+  title: string;
+  consumed: number;
+  target: number;
+  bg: string;
+  border: string;
+  accent: string;
+  foods: string[];
+}) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.9}
+      style={[styles.mealCard, { backgroundColor: bg, borderColor: border }]}
+      onPress={() => router.push(`/nutrition/add-meal?meal=${mealKey}`)}
+    >
+      <View style={styles.mealTopRow}>
+        <View>
+          <Text style={styles.mealTitle}>{title}</Text>
+          <Text style={[styles.mealCalories, { color: accent }]}>
+            {consumed} kcal
+            <Text style={styles.mealCaloriesMuted}> / {target} kcal</Text>
+          </Text>
+        </View>
+      </View>
 
-    if (!keyword) return baseList;
+      <ProgressBar progress={consumed / target} color={accent} />
 
-    return baseList.filter((food) =>
-      food.name.toLowerCase().includes(keyword),
-    );
-  }, [search, selectedMeal]);
+      <View style={styles.foodTagsWrap}>
+        {foods.map((food) => (
+          <View key={food} style={styles.foodTag}>
+            <Text style={styles.foodTagText}>{food}</Text>
+          </View>
+        ))}
+      </View>
+    </TouchableOpacity>
+  );
+}
 
-  const selectedFoods = useMemo(() => {
-    if (!selectedMeal) return [];
-    const allFoods = foodLibraryByMeal[selectedMeal] ?? [];
-    return allFoods.filter((food) => selectedFoodIds.includes(food.id));
-  }, [selectedFoodIds, selectedMeal]);
-
-  const totalCalories = selectedFoods.reduce((sum, food) => sum + food.kcal, 0);
-
-  const toggleFood = (foodId: string) => {
-    setSelectedFoodIds((prev) =>
-      prev.includes(foodId)
-        ? prev.filter((id) => id !== foodId)
-        : [...prev, foodId],
-    );
-  };
-
-  const handleSelectMeal = (mealKey: string) => {
-    setSelectedMeal(mealKey);
-    setSelectedFoodIds([]);
-    setSearch('');
-  };
-
-  const handleAddFoods = () => {
-    router.back();
-  };
+export default function NutritionScreen() {
+  const remaining = summary.target - summary.consumed;
+  const completion = Math.round((summary.consumed / summary.target) * 100);
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.screen}>
-        <View style={styles.backgroundContent}>
-          <Text style={styles.fakeTitle}>Beslenme</Text>
-          <Text style={styles.fakeSubtitle}>Bugün 16 Ocak</Text>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} activeOpacity={0.85}>
+            <Ionicons name='chevron-back' size={20} color={COLORS.text} />
+          </TouchableOpacity>
 
-          <View style={styles.fakeCard} />
-          <View style={styles.fakeMacroRow}>
-            <View style={styles.fakeMacroCard} />
-            <View style={styles.fakeMacroCard} />
-            <View style={styles.fakeMacroCard} />
+          <View>
+            <Text style={styles.title}>Beslenme</Text>
+            <Text style={styles.subtitle}>Bugün 16 Ocak</Text>
           </View>
         </View>
 
-        <View style={styles.overlay} />
+        <View style={styles.calorieCard}>
+          <Text style={styles.calorieTitle}>Günlük Kalori</Text>
 
-        <View style={styles.sheet}>
-          {!selectedMeal ? (
-            <>
-              <View style={styles.sheetHeader}>
-                <Text style={styles.sheetTitle}>Hangi Öğüne Eklemek İstersiniz?</Text>
+          <View style={styles.calorieValueRow}>
+            <Text style={styles.calorieValue}>{summary.consumed.toLocaleString('tr-TR')}</Text>
+            <Text style={styles.calorieTarget}>
+              {' '}
+              / {summary.target.toLocaleString('tr-TR')} kcal
+            </Text>
+          </View>
 
-                <TouchableOpacity
-                  style={styles.closeButton}
-                  activeOpacity={0.85}
-                  onPress={() => router.back()}
-                >
-                  <Ionicons name="close" size={18} color={COLORS.primary} />
-                </TouchableOpacity>
-              </View>
+          <ProgressBar progress={summary.consumed / summary.target} />
 
-              <View style={styles.mealGrid}>
-                {mealOptions.map((meal) => (
-                  <TouchableOpacity
-                    key={meal.key}
-                    activeOpacity={0.88}
-                    style={[
-                      styles.mealOptionCard,
-                      { backgroundColor: meal.bg, borderColor: meal.color },
-                    ]}
-                    onPress={() => handleSelectMeal(meal.key)}
-                  >
-                    <Text style={styles.mealOptionText}>{meal.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </>
-          ) : (
-            <>
-              <View style={styles.sheetHeader}>
-                <Text style={styles.sheetTitle}>
-                  {selectedMealMeta?.label} - Besin Ekle
-                </Text>
-
-                <TouchableOpacity
-                  style={styles.closeButton}
-                  activeOpacity={0.85}
-                  onPress={() => router.back()}
-                >
-                  <Ionicons name="close" size={18} color={COLORS.primary} />
-                </TouchableOpacity>
-              </View>
-
-              <TextInput
-                value={search}
-                onChangeText={setSearch}
-                placeholder="Besin ara..."
-                placeholderTextColor="#9AA1AF"
-                style={styles.searchInput}
-              />
-
-              <ScrollView
-                style={styles.foodList}
-                contentContainerStyle={styles.foodListContent}
-                showsVerticalScrollIndicator={false}
-              >
-                <View style={styles.foodGrid}>
-                  {foods.map((food) => {
-                    const selected = selectedFoodIds.includes(food.id);
-
-                    return (
-                      <TouchableOpacity
-                        key={food.id}
-                        activeOpacity={0.88}
-                        style={[
-                          styles.foodCard,
-                          selected && {
-                            borderColor: COLORS.green,
-                            backgroundColor: COLORS.white,
-                          },
-                        ]}
-                        onPress={() => toggleFood(food.id)}
-                      >
-                        {selected && (
-                          <View style={styles.checkBadge}>
-                            <Ionicons name="checkmark" size={12} color={COLORS.white} />
-                          </View>
-                        )}
-
-                        <Text style={styles.foodName}>{food.name}</Text>
-                        <Text style={styles.foodCalories}>{food.kcal} kcal</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </ScrollView>
-
-              <View style={styles.bottomInfoRow}>
-                <Text style={styles.bottomInfoText}>
-                  {selectedFoods.length} besin seçildi
-                </Text>
-                <Text style={styles.totalText}>Toplam: {totalCalories} kcal</Text>
-              </View>
-
-              <TouchableOpacity
-                activeOpacity={0.88}
-                style={[
-                  styles.primaryButton,
-                  selectedFoods.length === 0 && styles.disabledButton,
-                ]}
-                disabled={selectedFoods.length === 0}
-                onPress={handleAddFoods}
-              >
-                <Text
-                  style={[
-                    styles.primaryButtonText,
-                    selectedFoods.length === 0 && styles.disabledButtonText,
-                  ]}
-                >
-                  {selectedFoods.length > 0
-                    ? `${selectedFoods.length} Besini Ekle`
-                    : 'Besin Seç'}
-                </Text>
-              </TouchableOpacity>
-            </>
-          )}
+          <View style={styles.calorieFooter}>
+            <Text style={styles.calorieFooterText}>Kalan: {remaining} kcal</Text>
+            <Text style={styles.calorieFooterText}>%{completion} tamamlandı</Text>
+          </View>
         </View>
-      </View>
+
+        <View style={styles.macroRow}>
+          <MacroCard
+            value={summary.carbs.value}
+            target={summary.carbs.target}
+            label='Karbonhidrat'
+            color={COLORS.green}
+            bg={COLORS.greenSoft}
+          />
+          <MacroCard
+            value={summary.protein.value}
+            target={summary.protein.target}
+            label='Protein'
+            color={COLORS.primary}
+            bg={COLORS.purpleSoft}
+          />
+          <MacroCard
+            value={summary.fat.value}
+            target={summary.fat.target}
+            label='Yağ'
+            color={COLORS.yellow}
+            bg={COLORS.yellowSoft}
+          />
+        </View>
+
+        <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={styles.outlineAction}
+            activeOpacity={0.85}
+            onPress={() => router.push('/nutrition/add-meal')}
+          >
+            <Ionicons name='add' size={18} color={COLORS.primary} />
+            <Text style={styles.outlineActionText}>Besin Ekle</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.photoAction}
+            activeOpacity={0.85}
+            onPress={() => router.push('/nutrition/scan')}
+          >
+            <Ionicons name='camera-outline' size={18} color={COLORS.orange} />
+            <Text style={styles.photoActionText}>Foto Kalori</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.mealsWrap}>
+          {meals.map(({ key, ...meal }) => (
+            <MealCard key={key} mealKey={key} {...meal} />
+          ))}
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -285,200 +277,209 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  screen: {
+  container: {
     flex: 1,
-    justifyContent: 'flex-end',
     backgroundColor: COLORS.background,
   },
-
-  backgroundContent: {
-    flex: 1,
+  content: {
     paddingHorizontal: 20,
-    paddingTop: 20,
-  },
-  fakeTitle: {
-    fontSize: 30,
-    fontWeight: '800',
-    color: '#222532',
-    marginBottom: 4,
-  },
-  fakeSubtitle: {
-    fontSize: 15,
-    color: '#555B67',
-    marginBottom: 18,
-  },
-  fakeCard: {
-    height: 190,
-    borderRadius: 28,
-    backgroundColor: '#ECEAF4',
-    marginBottom: 16,
-  },
-  fakeMacroRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  fakeMacroCard: {
-    flex: 1,
-    height: 116,
-    borderRadius: 22,
-    backgroundColor: '#EEF1E6',
+    paddingTop: 10,
+    paddingBottom: 120,
   },
 
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: COLORS.overlay,
-  },
-
-  sheet: {
-    minHeight: 300,
-    maxHeight: '72%',
-    backgroundColor: COLORS.sheet,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 18,
-    paddingTop: 18,
-    paddingBottom: 20,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  sheetHeader: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
+    gap: 12,
+    marginBottom: 20,
   },
-  sheetTitle: {
-    flex: 1,
-    fontSize: 17,
-    fontWeight: '800',
-    color: COLORS.primary,
-    paddingRight: 12,
-  },
-  closeButton: {
+  backButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#EFEDF8',
+    backgroundColor: '#EEF1E6',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  mealGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  mealOptionCard: {
-    width: '47%',
-    minHeight: 72,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-  },
-  mealOptionText: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-
-  searchInput: {
-    height: 44,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#DDD9EA',
-    backgroundColor: '#FBFAFE',
-    paddingHorizontal: 14,
-    fontSize: 14,
-    color: COLORS.text,
-    marginBottom: 14,
-  },
-
-  foodList: {
-    flexGrow: 0,
-  },
-  foodListContent: {
-    paddingBottom: 12,
-  },
-  foodGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  foodCard: {
-    width: '47.5%',
-    minHeight: 76,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E7E4F0',
-    backgroundColor: '#F3F2F7',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 12,
-    position: 'relative',
-  },
-  checkBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: COLORS.green,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  foodName: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: COLORS.text,
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  foodCalories: {
-    fontSize: 13,
+  title: {
+    fontSize: 31,
     fontWeight: '700',
-    color: COLORS.green,
-    textAlign: 'center',
+    color: COLORS.text,
+  },
+  subtitle: {
+    marginTop: 2,
+    fontSize: 15,
+    color: '#4E535F',
   },
 
-  bottomInfoRow: {
-    marginTop: 8,
-    marginBottom: 12,
+  calorieCard: {
+    backgroundColor: '#F2F1F6',
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#DED9ED',
+    marginBottom: 18,
+  },
+  calorieTitle: {
+    textAlign: 'center',
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 10,
+  },
+  calorieValueRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'baseline',
+    marginBottom: 18,
+  },
+  calorieValue: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: COLORS.green,
+  },
+  calorieTarget: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#747B89',
+  },
+  calorieFooter: {
+    marginTop: 14,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
   },
-  bottomInfoText: {
-    fontSize: 14,
-    color: '#6E7483',
+  calorieFooterText: {
+    fontSize: 13,
+    color: '#6E7380',
     fontWeight: '500',
   },
-  totalText: {
-    fontSize: 14,
-    color: COLORS.green,
-    fontWeight: '800',
+
+  progressTrack: {
+    width: '100%',
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    borderRadius: 999,
   },
 
-  primaryButton: {
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: COLORS.primary,
+  macroRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 18,
+  },
+  macroCard: {
+    flex: 1,
+    minHeight: 118,
+    borderRadius: 22,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 8,
   },
-  disabledButton: {
-    backgroundColor: '#E7E7EA',
-  },
-  primaryButtonText: {
-    fontSize: 15,
+  macroValue: {
+    fontSize: 20,
     fontWeight: '800',
-    color: COLORS.white,
+    marginBottom: 4,
   },
-  disabledButtonText: {
-    color: '#B5B7BD',
+  macroTarget: {
+    fontSize: 13,
+    color: '#6D7380',
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  macroLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.text,
+    textAlign: 'center',
+  },
+
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  outlineAction: {
+    flex: 1,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
+    backgroundColor: '#F8F6FC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  outlineActionText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+  photoAction: {
+    flex: 1,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: COLORS.orangeSoft,
+    borderWidth: 1,
+    borderColor: '#F0B49A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  photoActionText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.orange,
+  },
+
+  mealsWrap: {
+    gap: 14,
+  },
+  mealCard: {
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 18,
+  },
+  mealTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 18,
+  },
+  mealTitle: {
+    fontSize: 21,
+    fontWeight: '800',
+    color: COLORS.text,
+    marginBottom: 4,
+  },
+  mealCalories: {
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  mealCaloriesMuted: {
+    color: '#7C8290',
+    fontWeight: '600',
+  },
+  foodTagsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 16,
+  },
+  foodTag: {
+    backgroundColor: 'rgba(255,255,255,0.65)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  foodTagText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#5D6380',
   },
 });
