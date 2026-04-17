@@ -8,11 +8,10 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 
 const COLORS = {
   background: '#F8F6EC',
-  card: '#F3F1F8',
   text: '#1F2430',
   muted: '#7E8695',
   primary: '#5E578F',
@@ -26,7 +25,6 @@ const COLORS = {
   orange: '#FF6B1A',
   orangeSoft: '#FDE5DA',
   border: '#E6E2F0',
-  white: '#FFFFFF',
 };
 
 const summary = {
@@ -45,7 +43,7 @@ const meals = [
     target: 500,
     bg: '#EEF5DE',
     border: '#A8C85A',
-    accent: '#A8C85A',
+    accent: '#7EA13A',
     foods: ['Yumurta', 'Avokado', 'Tam buğday ekmeği'],
   },
   {
@@ -55,7 +53,7 @@ const meals = [
     target: 700,
     bg: '#FFF4DA',
     border: '#F2CF7B',
-    accent: '#F2CF7B',
+    accent: '#C89E32',
     foods: ['Tavuk salatası', 'Quinoa', 'Sebzeler'],
   },
   {
@@ -65,7 +63,7 @@ const meals = [
     target: 600,
     bg: '#F0EDFA',
     border: '#C9C3EA',
-    accent: '#C9C3EA',
+    accent: '#7A70B8',
     foods: ['Somon', 'Buharda sebze'],
   },
   {
@@ -149,7 +147,16 @@ function MealCard({
   foods: string[];
 }) {
   return (
-    <View style={[styles.mealCard, { backgroundColor: bg, borderColor: border }]}>
+    <TouchableOpacity
+      activeOpacity={0.9}
+      style={[styles.mealCard, { backgroundColor: bg, borderColor: border }]}
+      onPress={() =>
+        router.push({
+          pathname: '/(tabs)/nutrition/add-meal',
+          params: { meal: mealKey },
+        })
+      }
+    >
       <View style={styles.mealHeader}>
         <View>
           <Text style={styles.mealTitle}>{title}</Text>
@@ -158,17 +165,9 @@ function MealCard({
             <Text style={styles.mealCaloriesMuted}> / {target} kcal</Text>
           </Text>
         </View>
-
-        <TouchableOpacity
-          activeOpacity={0.85}
-          style={[styles.addIconButton, { backgroundColor: accent }]}
-          onPress={() => router.push(`/nutrition/add-meal?meal=${mealKey}`)}
-        >
-          <Ionicons name="add" size={20} color={COLORS.white} />
-        </TouchableOpacity>
       </View>
 
-      <ProgressBar progress={consumed / target} />
+      <ProgressBar progress={consumed / target} color={accent} />
 
       <View style={styles.foodTagsWrap}>
         {foods.map((food) => (
@@ -177,7 +176,7 @@ function MealCard({
           </View>
         ))}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -193,10 +192,6 @@ export default function NutritionScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} activeOpacity={0.85}>
-            <Ionicons name="chevron-back" size={20} color={COLORS.text} />
-          </TouchableOpacity>
-
           <View>
             <Text style={styles.title}>Beslenme</Text>
             <Text style={styles.subtitle}>Bugün 16 Ocak</Text>
@@ -226,21 +221,21 @@ export default function NutritionScreen() {
           <MacroCard
             value={summary.carbs.value}
             target={summary.carbs.target}
-            label="Karbonhidrat"
+            label='Karbonhidrat'
             color={COLORS.green}
             bg={COLORS.greenSoft}
           />
           <MacroCard
             value={summary.protein.value}
             target={summary.protein.target}
-            label="Protein"
+            label='Protein'
             color={COLORS.primary}
             bg={COLORS.purpleSoft}
           />
           <MacroCard
             value={summary.fat.value}
             target={summary.fat.target}
-            label="Yağ"
+            label='Yağ'
             color={COLORS.yellow}
             bg={COLORS.yellowSoft}
           />
@@ -250,18 +245,18 @@ export default function NutritionScreen() {
           <TouchableOpacity
             style={styles.outlineAction}
             activeOpacity={0.85}
-            onPress={() => router.push('/nutrition/add-meal')}
+            onPress={() => router.push('/(tabs)/nutrition/add-meal')}
           >
-            <Ionicons name="add" size={18} color={COLORS.primary} />
+            <Ionicons name='add' size={18} color={COLORS.primary} />
             <Text style={styles.outlineActionText}>Besin Ekle</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.photoAction}
             activeOpacity={0.85}
-            onPress={() => router.push('/nutrition/scan')}
+            onPress={() => router.push('/(tabs)/nutrition/scan')}
           >
-            <Ionicons name="camera-outline" size={18} color={COLORS.orange} />
+            <Ionicons name='camera-outline' size={18} color={COLORS.orange} />
             <Text style={styles.photoActionText}>Foto Kalori</Text>
           </TouchableOpacity>
         </View>
@@ -272,10 +267,6 @@ export default function NutritionScreen() {
           ))}
         </View>
       </ScrollView>
-
-      <TouchableOpacity style={styles.chatButton} activeOpacity={0.85}>
-        <MaterialCommunityIcons name="robot-happy-outline" size={26} color="#6E8B3D" />
-      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -291,23 +282,12 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingTop: 16,
     paddingBottom: 120,
   },
 
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
     marginBottom: 20,
-  },
-  backButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#EEF1E6',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   title: {
     fontSize: 31,
@@ -474,13 +454,6 @@ const styles = StyleSheet.create({
     color: '#7C8290',
     fontWeight: '600',
   },
-  addIconButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   foodTagsWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -497,24 +470,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#5D6380',
-  },
-
-  chatButton: {
-    position: 'absolute',
-    right: 18,
-    bottom: 88,
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: '#DDF0BF',
-    borderWidth: 1,
-    borderColor: '#A8C85A',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.14,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 5,
   },
 });

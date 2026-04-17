@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
+  ActivityIndicator,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -23,7 +24,38 @@ const COLORS = {
   white: '#FFFFFF',
 };
 
+const MOCK_RESULT = {
+  name: 'Tavuk Salatası',
+  portion: '1 porsiyon',
+  calories: 320,
+  protein: 24,
+  carbs: 18,
+  fat: 14,
+  ingredients: ['Marul', 'Izgara Tavuk', 'Domates', 'Zeytinyağı'],
+};
+
 export default function ScanScreen() {
+  const [selectedSource, setSelectedSource] = useState<'gallery' | 'camera' | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [showResult, setShowResult] = useState(false);
+
+  const handleMockAnalyze = (source: 'gallery' | 'camera') => {
+    setSelectedSource(source);
+    setIsAnalyzing(true);
+    setShowResult(false);
+
+    setTimeout(() => {
+      setIsAnalyzing(false);
+      setShowResult(true);
+    }, 1500);
+  };
+
+  const resetFlow = () => {
+    setSelectedSource(null);
+    setIsAnalyzing(false);
+    setShowResult(false);
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
@@ -57,78 +89,114 @@ export default function ScanScreen() {
           </Text>
 
           <View style={styles.actionRow}>
-            <TouchableOpacity style={styles.galleryButton} activeOpacity={0.85}>
+            <TouchableOpacity
+              style={styles.galleryButton}
+              activeOpacity={0.85}
+              onPress={() => handleMockAnalyze('gallery')}
+              disabled={isAnalyzing}
+            >
               <Ionicons name='images-outline' size={18} color={COLORS.primary} />
               <Text style={styles.galleryButtonText}>Galeriden Seç</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.cameraButton} activeOpacity={0.85}>
+            <TouchableOpacity
+              style={styles.cameraButton}
+              activeOpacity={0.85}
+              onPress={() => handleMockAnalyze('camera')}
+              disabled={isAnalyzing}
+            >
               <Ionicons name='camera-outline' size={18} color={COLORS.orange} />
               <Text style={styles.cameraButtonText}>Foto Çek</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        <View style={styles.resultCard}>
-          <Text style={styles.resultTitle}>Analiz Sonucu</Text>
-
-          <View style={styles.foodPreview}>
-            <View style={styles.foodPreviewImage}>
-              <Ionicons name='restaurant-outline' size={28} color={COLORS.primary} />
-            </View>
-
-            <View style={styles.foodPreviewInfo}>
-              <Text style={styles.foodName}>Tavuk Salatası</Text>
-              <Text style={styles.foodMeta}>1 porsiyon • Tahmini analiz</Text>
-            </View>
+        {isAnalyzing && (
+          <View style={styles.loadingCard}>
+            <ActivityIndicator size='large' color={COLORS.primary} />
+            <Text style={styles.loadingTitle}>Analiz ediliyor...</Text>
+            <Text style={styles.loadingText}>
+              {selectedSource === 'gallery'
+                ? 'Galeriden seçtiğin fotoğraf işleniyor.'
+                : 'Çekilen fotoğraf işleniyor.'}
+            </Text>
           </View>
+        )}
 
-          <View style={styles.kcalBox}>
-            <Text style={styles.kcalValue}>320 kcal</Text>
-            <Text style={styles.kcalLabel}>Tahmini toplam enerji</Text>
+        {showResult && (
+          <View style={styles.resultCard}>
+            <View style={styles.resultHeaderRow}>
+              <Text style={styles.resultTitle}>Analiz Sonucu</Text>
+
+              <TouchableOpacity
+                style={styles.retryButton}
+                activeOpacity={0.85}
+                onPress={resetFlow}
+              >
+                <Ionicons name='refresh-outline' size={16} color={COLORS.primary} />
+                <Text style={styles.retryButtonText}>Yeniden Dene</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.foodPreview}>
+              <View style={styles.foodPreviewImage}>
+                <Ionicons name='restaurant-outline' size={28} color={COLORS.primary} />
+              </View>
+
+              <View style={styles.foodPreviewInfo}>
+                <Text style={styles.foodName}>{MOCK_RESULT.name}</Text>
+                <Text style={styles.foodMeta}>
+                  {MOCK_RESULT.portion} • Tahmini analiz
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.kcalBox}>
+              <Text style={styles.kcalValue}>{MOCK_RESULT.calories} kcal</Text>
+              <Text style={styles.kcalLabel}>Tahmini toplam enerji</Text>
+            </View>
+
+            <View style={styles.macrosRow}>
+              <View style={[styles.macroPill, { backgroundColor: COLORS.greenSoft }]}>
+                <Text style={[styles.macroValue, { color: COLORS.green }]}>
+                  {MOCK_RESULT.protein}g
+                </Text>
+                <Text style={styles.macroLabel}>Protein</Text>
+              </View>
+
+              <View style={[styles.macroPill, { backgroundColor: '#FFF4DA' }]}>
+                <Text style={[styles.macroValue, { color: '#D4A63D' }]}>
+                  {MOCK_RESULT.carbs}g
+                </Text>
+                <Text style={styles.macroLabel}>Karbonhidrat</Text>
+              </View>
+
+              <View style={[styles.macroPill, { backgroundColor: COLORS.primarySoft }]}>
+                <Text style={[styles.macroValue, { color: COLORS.primary }]}>
+                  {MOCK_RESULT.fat}g
+                </Text>
+                <Text style={styles.macroLabel}>Yağ</Text>
+              </View>
+            </View>
+
+            <View style={styles.tagsWrap}>
+              {MOCK_RESULT.ingredients.map((item) => (
+                <View key={item} style={styles.tag}>
+                  <Text style={styles.tagText}>{item}</Text>
+                </View>
+              ))}
+            </View>
+
+            <TouchableOpacity
+              style={styles.addMealButton}
+              activeOpacity={0.85}
+              onPress={() => router.push('/nutrition/add-meal')}
+            >
+              <Ionicons name='add' size={18} color={COLORS.white} />
+              <Text style={styles.addMealButtonText}>Öğüne Ekle</Text>
+            </TouchableOpacity>
           </View>
-
-          <View style={styles.macrosRow}>
-            <View style={[styles.macroPill, { backgroundColor: COLORS.greenSoft }]}>
-              <Text style={[styles.macroValue, { color: COLORS.green }]}>24g</Text>
-              <Text style={styles.macroLabel}>Protein</Text>
-            </View>
-
-            <View style={[styles.macroPill, { backgroundColor: '#FFF4DA' }]}>
-              <Text style={[styles.macroValue, { color: '#D4A63D' }]}>18g</Text>
-              <Text style={styles.macroLabel}>Karbonhidrat</Text>
-            </View>
-
-            <View style={[styles.macroPill, { backgroundColor: COLORS.primarySoft }]}>
-              <Text style={[styles.macroValue, { color: COLORS.primary }]}>14g</Text>
-              <Text style={styles.macroLabel}>Yağ</Text>
-            </View>
-          </View>
-
-          <View style={styles.tagsWrap}>
-            <View style={styles.tag}>
-              <Text style={styles.tagText}>Marul</Text>
-            </View>
-            <View style={styles.tag}>
-              <Text style={styles.tagText}>Izgara Tavuk</Text>
-            </View>
-            <View style={styles.tag}>
-              <Text style={styles.tagText}>Domates</Text>
-            </View>
-            <View style={styles.tag}>
-              <Text style={styles.tagText}>Zeytinyağı</Text>
-            </View>
-          </View>
-
-          <TouchableOpacity
-            style={styles.addMealButton}
-            activeOpacity={0.85}
-            onPress={() => router.push('/nutrition/add-meal')}
-          >
-            <Ionicons name='add' size={18} color={COLORS.white} />
-            <Text style={styles.addMealButtonText}>Öğüne Ekle</Text>
-          </TouchableOpacity>
-        </View>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -246,6 +314,30 @@ const styles = StyleSheet.create({
     color: COLORS.orange,
   },
 
+  loadingCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: '#ECE7F5',
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+  loadingTitle: {
+    marginTop: 14,
+    fontSize: 18,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  loadingText: {
+    marginTop: 8,
+    fontSize: 14,
+    lineHeight: 21,
+    color: COLORS.muted,
+    textAlign: 'center',
+  },
+
   resultCard: {
     backgroundColor: COLORS.white,
     borderRadius: 28,
@@ -253,11 +345,30 @@ const styles = StyleSheet.create({
     borderColor: '#ECE7F5',
     padding: 18,
   },
+  resultHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   resultTitle: {
     fontSize: 19,
     fontWeight: '800',
     color: COLORS.text,
-    marginBottom: 16,
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: COLORS.primarySoft,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  retryButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.primary,
   },
 
   foodPreview: {
