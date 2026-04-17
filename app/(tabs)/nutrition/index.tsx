@@ -386,9 +386,9 @@ const styles = StyleSheet.create({
   },
 
   actionsRow: {
-    flexDirection: 'row',
+    flexDirection:  'row',
     gap: 12,
-    marginBottom: 18,
+    marginBottom: 18 ,
   },
   outlineAction: {
     flex: 1,

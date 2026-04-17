@@ -405,7 +405,8 @@ const styles = StyleSheet.create({
     color: '#6E7483',
     fontWeight: '500',
   },
-  totalText: {
+   totalText: {
+    
     fontSize: 14,
     color: COLORS.green,
     fontWeight: '800',
@@ -428,5 +429,5 @@ const styles = StyleSheet.create({
   },
   disabledButtonText: {
     color: '#B5B7BD',
-  },
+    },
 });
