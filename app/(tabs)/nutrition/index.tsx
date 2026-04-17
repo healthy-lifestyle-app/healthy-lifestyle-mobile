@@ -12,7 +12,6 @@ import { Ionicons } from '@expo/vector-icons';
 
 const COLORS = {
   background: '#F8F6EC',
-  card: '#F3F1F8',
   text: '#1F2430',
   muted: '#7E8695',
   primary: '#5E578F',
@@ -26,7 +25,6 @@ const COLORS = {
   orange: '#FF6B1A',
   orangeSoft: '#FDE5DA',
   border: '#E6E2F0',
-  white: '#FFFFFF',
 };
 
 const summary = {
@@ -45,7 +43,7 @@ const meals = [
     target: 500,
     bg: '#EEF5DE',
     border: '#A8C85A',
-    accent: '#A8C85A',
+    accent: '#7EA13A',
     foods: ['Yumurta', 'Avokado', 'Tam buğday ekmeği'],
   },
   {
@@ -55,7 +53,7 @@ const meals = [
     target: 700,
     bg: '#FFF4DA',
     border: '#F2CF7B',
-    accent: '#F2CF7B',
+    accent: '#C89E32',
     foods: ['Tavuk salatası', 'Quinoa', 'Sebzeler'],
   },
   {
@@ -65,7 +63,7 @@ const meals = [
     target: 600,
     bg: '#F0EDFA',
     border: '#C9C3EA',
-    accent: '#C9C3EA',
+    accent: '#7A70B8',
     foods: ['Somon', 'Buharda sebze'],
   },
   {
@@ -152,7 +150,12 @@ function MealCard({
     <TouchableOpacity
       activeOpacity={0.9}
       style={[styles.mealCard, { backgroundColor: bg, borderColor: border }]}
-      onPress={() => router.push(`/nutrition/add-meal?meal=${mealKey}`)}
+      onPress={() =>
+        router.push({
+          pathname: '/(tabs)/nutrition/add-meal',
+          params: { meal: mealKey },
+        })
+      }
     >
       <View style={styles.mealHeader}>
         <View>
@@ -164,7 +167,7 @@ function MealCard({
         </View>
       </View>
 
-      <ProgressBar progress={consumed / target} />
+      <ProgressBar progress={consumed / target} color={accent} />
 
       <View style={styles.foodTagsWrap}>
         {foods.map((food) => (
@@ -189,10 +192,6 @@ export default function NutritionScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} activeOpacity={0.85}>
-            <Ionicons name='chevron-back' size={20} color={COLORS.text} />
-          </TouchableOpacity>
-
           <View>
             <Text style={styles.title}>Beslenme</Text>
             <Text style={styles.subtitle}>Bugün 16 Ocak</Text>
@@ -246,7 +245,7 @@ export default function NutritionScreen() {
           <TouchableOpacity
             style={styles.outlineAction}
             activeOpacity={0.85}
-            onPress={() => router.push('/nutrition/add-meal')}
+            onPress={() => router.push('/(tabs)/nutrition/add-meal')}
           >
             <Ionicons name='add' size={18} color={COLORS.primary} />
             <Text style={styles.outlineActionText}>Besin Ekle</Text>
@@ -255,7 +254,7 @@ export default function NutritionScreen() {
           <TouchableOpacity
             style={styles.photoAction}
             activeOpacity={0.85}
-            onPress={() => router.push('/nutrition/scan')}
+            onPress={() => router.push('/(tabs)/nutrition/scan')}
           >
             <Ionicons name='camera-outline' size={18} color={COLORS.orange} />
             <Text style={styles.photoActionText}>Foto Kalori</Text>
@@ -283,23 +282,12 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingTop: 16,
     paddingBottom: 120,
   },
 
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
     marginBottom: 20,
-  },
-  backButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#EEF1E6',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   title: {
     fontSize: 31,
