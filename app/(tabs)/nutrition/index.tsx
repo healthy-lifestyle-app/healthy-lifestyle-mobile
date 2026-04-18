@@ -1,14 +1,18 @@
-import React from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   SafeAreaView,
   ScrollView,
-  StyleSheet,
+ StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
+
+const STORAGE_KEY = 'nutrition_meals';
 
 const COLORS = {
   background: '#F8F6EC',
@@ -25,6 +29,7 @@ const COLORS = {
   orange: '#FF6B1A',
   orangeSoft: '#FDE5DA',
   border: '#E6E2F0',
+  white: '#FFFFFF',
 };
 
 const summary = {
@@ -35,7 +40,7 @@ const summary = {
   fat: { value: 35, target: 50 },
 };
 
-const meals = [
+const initialMeals = [
   {
     key: 'breakfast',
     title: 'Kahvaltı',
@@ -43,7 +48,7 @@ const meals = [
     target: 500,
     bg: '#EEF5DE',
     border: '#A8C85A',
-    accent: '#7EA13A',
+    accent: '#A8C85A',
     foods: ['Yumurta', 'Avokado', 'Tam buğday ekmeği'],
   },
   {
@@ -53,7 +58,7 @@ const meals = [
     target: 700,
     bg: '#FFF4DA',
     border: '#F2CF7B',
-    accent: '#C89E32',
+    accent: '#F2CF7B',
     foods: ['Tavuk salatası', 'Quinoa', 'Sebzeler'],
   },
   {
@@ -63,7 +68,7 @@ const meals = [
     target: 600,
     bg: '#F0EDFA',
     border: '#C9C3EA',
-    accent: '#7A70B8',
+    accent: '#C9C3EA',
     foods: ['Somon', 'Buharda sebze'],
   },
   {
@@ -77,6 +82,28 @@ const meals = [
     foods: ['Badem', 'Meyve'],
   },
 ];
+
+type Meal = {
+  key: string;
+  title: string;
+  consumed: number;
+  target: number;
+  bg: string;
+  border: string;
+  accent: string;
+  foods: string[];
+};
+
+async function getStoredMeals(): Promise<Meal[]> {
+  const rawMeals = await AsyncStorage.getItem(STORAGE_KEY);
+
+  if (!rawMeals) {
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(initialMeals));
+    return initialMeals;
+  }
+
+  return JSON.parse(rawMeals) as Meal[];
+}
 
 function ProgressBar({
   progress,
@@ -127,6 +154,28 @@ function MacroCard({
   );
 }
 
+function FoodTag({
+  label,
+  onRemove,
+}: {
+  label: string;
+  onRemove: () => void;
+}) {
+  return (
+    <View style={styles.foodTag}>
+      <Text style={styles.foodTagText}>{label}</Text>
+
+      <TouchableOpacity
+        activeOpacity={0.85}
+        style={styles.foodTagRemoveButton}
+        onPress={onRemove}
+      >
+        <Ionicons name='close' size={12} color={COLORS.white} />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 function MealCard({
   mealKey,
   title,
@@ -136,6 +185,7 @@ function MealCard({
   border,
   accent,
   foods,
+  onRemoveFood,
 }: {
   mealKey: string;
   title: string;
@@ -145,18 +195,10 @@ function MealCard({
   border: string;
   accent: string;
   foods: string[];
+  onRemoveFood: (mealKey: string, food: string) => void;
 }) {
   return (
-    <TouchableOpacity
-      activeOpacity={0.9}
-      style={[styles.mealCard, { backgroundColor: bg, borderColor: border }]}
-      onPress={() =>
-        router.push({
-          pathname: '/(tabs)/nutrition/add-meal',
-          params: { meal: mealKey },
-        })
-      }
-    >
+    <View style={[styles.mealCard, { backgroundColor: bg, borderColor: border }]}>
       <View style={styles.mealHeader}>
         <View>
           <Text style={styles.mealTitle}>{title}</Text>
@@ -165,24 +207,75 @@ function MealCard({
             <Text style={styles.mealCaloriesMuted}> / {target} kcal</Text>
           </Text>
         </View>
+
+        <TouchableOpacity
+          activeOpacity={0.85}
+          style={[styles.addIconButton, { backgroundColor: accent }]}
+          onPress={() => router.push(`/nutrition/add-meal?meal=${mealKey}`)}
+        >
+          <Ionicons name='add' size={20} color={COLORS.white} />
+        </TouchableOpacity>
       </View>
 
-      <ProgressBar progress={consumed / target} color={accent} />
+      <ProgressBar progress={consumed / target} />
 
       <View style={styles.foodTagsWrap}>
-        {foods.map((food) => (
-          <View key={food} style={styles.foodTag}>
-            <Text style={styles.foodTagText}>{food}</Text>
-          </View>
-        ))}
+        {foods.length > 0 ? (
+          foods.map((food, index) => (
+            <FoodTag
+              key={`${food}-${index}`}
+              label={food}
+              onRemove={() => onRemoveFood(mealKey, food)}
+            />
+          ))
+        ) : (
+          <Text style={styles.emptyFoodsText}>Henüz besin eklenmedi</Text>
+        )}
       </View>
-    </TouchableOpacity>
+    </View>
   );
 }
 
 export default function NutritionScreen() {
+  const [meals, setMeals] = useState<Meal[]>(initialMeals);
+
   const remaining = summary.target - summary.consumed;
   const completion = Math.round((summary.consumed / summary.target) * 100);
+
+  const loadMeals = useCallback(async () => {
+    try {
+      const storedMeals = await getStoredMeals();
+      setMeals(storedMeals);
+    } catch (error) {
+      console.log('Öğünler yüklenemedi:', error);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadMeals();
+    }, [loadMeals]),
+  );
+
+  const handleRemoveFood = async (mealKey: string, foodToRemove: string) => {
+    try {
+      const updatedMeals = meals.map((meal) =>
+        meal.key === mealKey
+          ? {
+              ...meal,
+              foods: meal.foods.filter((food) => food !== foodToRemove),
+            }
+          : meal,
+      );
+
+      setMeals(updatedMeals);
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedMeals));
+    } catch (error) {
+      console.log("Besin silinemedi:", error);
+    }
+  };
+
+  const visibleMeals = useMemo(() => meals, [meals]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -192,6 +285,10 @@ export default function NutritionScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} activeOpacity={0.85}>
+            <Ionicons name='chevron-back' size={20} color={COLORS.text} />
+          </TouchableOpacity>
+
           <View>
             <Text style={styles.title}>Beslenme</Text>
             <Text style={styles.subtitle}>Bugün 16 Ocak</Text>
@@ -245,7 +342,7 @@ export default function NutritionScreen() {
           <TouchableOpacity
             style={styles.outlineAction}
             activeOpacity={0.85}
-            onPress={() => router.push('/(tabs)/nutrition/add-meal')}
+            onPress={() => router.push('/nutrition/add-meal')}
           >
             <Ionicons name='add' size={18} color={COLORS.primary} />
             <Text style={styles.outlineActionText}>Besin Ekle</Text>
@@ -254,7 +351,7 @@ export default function NutritionScreen() {
           <TouchableOpacity
             style={styles.photoAction}
             activeOpacity={0.85}
-            onPress={() => router.push('/(tabs)/nutrition/scan')}
+            onPress={() => router.push('/nutrition/scan')}
           >
             <Ionicons name='camera-outline' size={18} color={COLORS.orange} />
             <Text style={styles.photoActionText}>Foto Kalori</Text>
@@ -262,8 +359,13 @@ export default function NutritionScreen() {
         </View>
 
         <View style={styles.mealsWrap}>
-          {meals.map(({ key, ...meal }) => (
-            <MealCard key={key} mealKey={key} {...meal} />
+          {visibleMeals.map(({ key, ...meal }) => (
+            <MealCard
+              key={key}
+              mealKey={key}
+              onRemoveFood={handleRemoveFood}
+              {...meal}
+            />
           ))}
         </View>
       </ScrollView>
@@ -282,12 +384,23 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 10,
     paddingBottom: 120,
   },
 
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     marginBottom: 20,
+  },
+  backButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#EEF1E6',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     fontSize: 31,
@@ -386,9 +499,9 @@ const styles = StyleSheet.create({
   },
 
   actionsRow: {
-    flexDirection:  'row',
+    flexDirection: 'row',
     gap: 12,
-    marginBottom: 18 ,
+    marginBottom: 18,
   },
   outlineAction: {
     flex: 1,
@@ -454,6 +567,14 @@ const styles = StyleSheet.create({
     color: '#7C8290',
     fontWeight: '600',
   },
+  addIconButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
   foodTagsWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -461,14 +582,31 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   foodTag: {
-    backgroundColor: 'rgba(255,255,255,0.65)',
-    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.72)',
+    paddingLeft: 12,
+    paddingRight: 8,
     paddingVertical: 8,
     borderRadius: 999,
+    gap: 6,
   },
   foodTagText: {
     fontSize: 13,
     fontWeight: '600',
     color: '#5D6380',
+  },
+  foodTagRemoveButton: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: COLORS.orange,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyFoodsText: {
+    fontSize: 13,
+    color: '#7E8695',
+    fontWeight: '500',
   },
 });
