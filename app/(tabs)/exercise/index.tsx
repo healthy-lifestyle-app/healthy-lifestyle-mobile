@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -10,7 +10,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
+import CreateWorkoutModal from '@/components/exercise/CreateWorkoutModal';
 import { workoutData } from '@/data/workoutData';
+import type { WorkoutItem } from '@/data/workoutData';
 
 function getWorkoutIcon(type: string): keyof typeof Ionicons.glyphMap {
   switch (type) {
@@ -60,7 +62,14 @@ function getWorkoutColors(type: string) {
 export default function ExerciseScreen() {
   const router = useRouter();
 
-  const quickStartWorkout = workoutData[0];
+  const [workouts, setWorkouts] = useState<WorkoutItem[]>(workoutData);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+  const quickStartWorkout = workouts[0];
+
+  const handleSaveWorkout = (newWorkout: WorkoutItem) => {
+    setWorkouts((prev) => [newWorkout, ...prev]);
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -74,10 +83,6 @@ export default function ExerciseScreen() {
             <Text style={styles.title}>Egzersiz</Text>
             <Text style={styles.subtitle}>Hareket zamanı!</Text>
           </View>
-
-          <TouchableOpacity style={styles.headerButton}>
-            <Ionicons name="add" size={22} color="#A8C85A" />
-          </TouchableOpacity>
         </View>
 
         {quickStartWorkout && (
@@ -123,11 +128,19 @@ export default function ExerciseScreen() {
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Antrenmanlar</Text>
-          <Text style={styles.sectionCount}>{workoutData.length} antrenman</Text>
+
+          <TouchableOpacity
+            style={styles.newWorkoutButton}
+            onPress={() => setIsCreateModalOpen(true)}
+            activeOpacity={0.9}
+          >
+            <Ionicons name="add" size={18} color="#A8C85A" />
+            <Text style={styles.newWorkoutButtonText}>Yeni Antreman Oluştur</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.list}>
-          {workoutData.map((workout) => {
+          {workouts.map((workout) => {
             const colors = getWorkoutColors(workout.type);
 
             return (
@@ -199,6 +212,12 @@ export default function ExerciseScreen() {
           })}
         </View>
       </ScrollView>
+
+      <CreateWorkoutModal
+        visible={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSave={handleSaveWorkout}
+      />
     </SafeAreaView>
   );
 }
@@ -218,9 +237,6 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     marginBottom: 24,
   },
   title: {
@@ -233,14 +249,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#6B7280',
     fontWeight: '500',
-  },
-  headerButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: '#EEF1E0',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   quickStartCard: {
     backgroundColor: '#F5F2FB',
@@ -298,7 +306,7 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 16,
   },
@@ -307,10 +315,19 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#111827',
   },
-  sectionCount: {
-    fontSize: 13,
-    color: '#6B7280',
-    fontWeight: '500',
+  newWorkoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#EEF1E0',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+  },
+  newWorkoutButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#A8C85A',
   },
   list: {
     marginBottom: 12,
