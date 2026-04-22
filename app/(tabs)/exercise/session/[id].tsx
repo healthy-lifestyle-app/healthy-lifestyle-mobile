@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Modal,
-  SafeAreaView,
+  Alert,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -13,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import ExerciseAnimation from '@/components/exercise/ExerciseAnimation';
 import { exerciseData } from '@/data/exerciseData';
 import { workoutData } from '@/data/workoutData';
+import Screen from '@/components/Screen';
 
 function formatTime(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60);
@@ -74,6 +76,8 @@ export default function ExerciseSessionScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
+  const [cardY, setCardY] = useState(0);
+  const scrollRef = useRef<ScrollView | null>(null);
 
   const currentExercise = sessionExercises[currentIndex];
 
@@ -130,9 +134,26 @@ export default function ExerciseSessionScreen() {
     router.replace('/(tabs)/exercise');
   };
 
+  const handleStopSession = () => {
+    setIsPaused(true);
+    Alert.alert('Antrenmanı Durdur', 'Bu antrenmanı durdurmak istiyor musun?', [
+      { text: 'Vazgeç', style: 'cancel', onPress: () => setIsPaused(false) },
+      {
+        text: 'Durdur',
+        style: 'destructive',
+        onPress: () => router.replace('/(tabs)/exercise'),
+      },
+    ]);
+  };
+
+  const handleFinishSession = () => {
+    setIsPaused(true);
+    setIsCompleted(true);
+  };
+
   if (!workout) {
     return (
-      <SafeAreaView style={styles.notFoundContainer}>
+      <Screen backgroundColor="#FCFBFF" contentStyle={styles.notFoundContainer} edges={['top']}>
         <Text style={styles.notFoundText}>Antrenman bulunamadı</Text>
         <TouchableOpacity
           style={styles.notFoundButton}
@@ -140,13 +161,13 @@ export default function ExerciseSessionScreen() {
         >
           <Text style={styles.notFoundButtonText}>Geri Dön</Text>
         </TouchableOpacity>
-      </SafeAreaView>
+      </Screen>
     );
   }
 
   if (!currentExercise) {
     return (
-      <SafeAreaView style={styles.notFoundContainer}>
+      <Screen backgroundColor="#FCFBFF" contentStyle={styles.notFoundContainer} edges={['top']}>
         <Text style={styles.notFoundText}>Antrenman içeriği bulunamadı</Text>
         <TouchableOpacity
           style={styles.notFoundButton}
@@ -154,24 +175,38 @@ export default function ExerciseSessionScreen() {
         >
           <Text style={styles.notFoundButtonText}>Geri Dön</Text>
         </TouchableOpacity>
-      </SafeAreaView>
+      </Screen>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backButton}
-        >
+    <Screen backgroundColor="#FCFBFF" contentStyle={styles.safeArea} edges={['top']}>
+      <ScrollView
+        ref={(ref) => {
+          scrollRef.current = ref;
+        }}
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        onContentSizeChange={() => {
+          if (cardY > 0) {
+            scrollRef.current?.scrollTo({ y: Math.max(0, cardY - 12), animated: true });
+          }
+        }}
+      >
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={22} color="#5C568E" />
         </TouchableOpacity>
 
         <Text style={styles.pageTitle}>Egzersiz</Text>
         <Text style={styles.pageSubtitle}>Hareket zamanı!</Text>
 
-        <View style={styles.mainCard}>
+        <View
+          style={styles.mainCard}
+          onLayout={(e) => {
+            setCardY(e.nativeEvent.layout.y);
+          }}
+        >
           <View style={styles.topIconBox}>
             <Ionicons name="fitness" size={26} color="#FFFFFF" />
           </View>
@@ -195,10 +230,10 @@ export default function ExerciseSessionScreen() {
 
           <View style={styles.buttonRow}>
             <TouchableOpacity
-              style={[styles.actionButton, styles.skipButton]}
-              onPress={handleSkipExercise}
+              style={[styles.actionButton, styles.stopButton]}
+              onPress={handleStopSession}
             >
-              <Text style={styles.skipButtonText}>Atla</Text>
+              <Text style={styles.stopButtonText}>Durdur</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -212,14 +247,22 @@ export default function ExerciseSessionScreen() {
 
             <TouchableOpacity
               style={[styles.actionButton, styles.doneButton]}
-              onPress={handleCompleteExercise}
+              onPress={handleFinishSession}
             >
-              <Ionicons name="checkmark" size={18} color="#FFFFFF" />
-              <Text style={styles.doneButtonText}>Tamam</Text>
+              <Ionicons name="flag" size={18} color="#FFFFFF" />
+              <Text style={styles.doneButtonText}>Bitir</Text>
             </TouchableOpacity>
           </View>
+
+          <TouchableOpacity style={styles.skipLink} onPress={handleSkipExercise}>
+            <Text style={styles.skipLinkText}>Bu hareketi atla</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.completeLink} onPress={handleCompleteExercise}>
+            <Text style={styles.completeLinkText}>Bu hareketi tamamla</Text>
+          </TouchableOpacity>
         </View>
-      </View>
+      </ScrollView>
 
       <Modal visible={isCompleted} transparent animationType="fade">
         <View style={styles.modalOverlay}>
@@ -256,7 +299,7 @@ export default function ExerciseSessionScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
@@ -265,10 +308,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FCFBFF',
   },
-  container: {
+  scroll: {
     flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 12,
+    paddingBottom: 28,
   },
   backButton: {
     width: 52,
@@ -296,6 +342,7 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     padding: 22,
     alignItems: 'center',
+    marginBottom: 12,
   },
   topIconBox: {
     width: 74,
@@ -358,7 +405,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
-  skipButton: {
+  stopButton: {
     backgroundColor: '#F4EFF6',
   },
   pauseButton: {
@@ -367,7 +414,7 @@ const styles = StyleSheet.create({
   doneButton: {
     backgroundColor: '#A8C85A',
   },
-  skipButtonText: {
+  stopButtonText: {
     fontSize: 17,
     fontWeight: '700',
     color: '#5C568E',
@@ -381,6 +428,24 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  skipLink: {
+    marginTop: 14,
+  },
+  skipLinkText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#5C568E',
+    textAlign: 'center',
+  },
+  completeLink: {
+    marginTop: 8,
+  },
+  completeLinkText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#F7672C',
+    textAlign: 'center',
   },
   modalOverlay: {
     flex: 1,

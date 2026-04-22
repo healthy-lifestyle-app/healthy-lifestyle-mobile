@@ -1,35 +1,57 @@
-import React, { useEffect, useState } from "react";
-import { Redirect } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import React from 'react';
+import { ActivityIndicator, View } from 'react-native';
+import { Redirect } from 'expo-router';
 
-type ValidRoute = "/auth/signup" | "/onboarding/welcome" | "/(tabs)/home";
+import { useAuth } from '@/context/AuthContext';
+import { getOnboardingDone } from '@/lib/storage';
 
 export default function Index() {
-  const [target, setTarget] = useState<ValidRoute | null>(null);
+  const { isAuthenticated, isLoading } = useAuth();
+  const [onboardingDone, setOnboardingDone] = React.useState<string | null>(null);
+  const [isCheckingOnboarding, setIsCheckingOnboarding] = React.useState(false);
 
-  useEffect(() => {
-    const checkStatus = async () => {
-      const authDone = await AsyncStorage.getItem("auth_done");
-
-      if (authDone !== "1") {
-        setTarget("/auth/signup");
-        return;
+  React.useEffect(() => {
+    async function loadOnboardingStatus() {
+      try {
+        setIsCheckingOnboarding(true);
+        const value = await getOnboardingDone();
+        setOnboardingDone(value);
+      } finally {
+        setIsCheckingOnboarding(false);
       }
+    }
 
-      const onboardingDone = await AsyncStorage.getItem("onboarding_done");
+    if (!isLoading && isAuthenticated) {
+      loadOnboardingStatus();
+      return;
+    }
 
-      if (onboardingDone !== "1") {
-        setTarget("/onboarding/welcome");
-        return;
-      }
+    if (!isLoading && !isAuthenticated) {
+      setOnboardingDone(null);
+      setIsCheckingOnboarding(false);
+    }
+  }, [isAuthenticated, isLoading]);
 
-      setTarget("/(tabs)/home");
-    };
+  if (isLoading || (isAuthenticated && isCheckingOnboarding)) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
 
-    checkStatus();
-  }, []);
+  if (!isAuthenticated) {
+    return <Redirect href="/auth/login" />;
+  }
 
-  if (!target) return null;
+  if (onboardingDone !== '1') {
+    return <Redirect href="/(tabs)/onboarding" />;
+  }
 
-  return <Redirect href={target} />;
+  return <Redirect href="/(tabs)/home" />;
 }

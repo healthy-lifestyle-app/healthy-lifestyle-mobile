@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { exerciseData } from '@/data/exerciseData';
 import ExerciseAnimation from '@/components/exercise/ExerciseAnimation';
+import Screen from '@/components/Screen';
 
 export default function ExerciseDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -42,18 +43,19 @@ export default function ExerciseDetailScreen() {
         : '#F44336';
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-        <Ionicons name="arrow-back" size={22} color="#5C568E" />
-        <Text style={styles.backButtonText}>Geri</Text>
-      </TouchableOpacity>
+    <Screen backgroundColor="#FCFBFF" edges={['top']}>
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={22} color="#5C568E" />
+          <Text style={styles.backButtonText}>Geri</Text>
+        </TouchableOpacity>
 
-      <View style={styles.content}>
-        <ExerciseAnimation
-          animationKey={exercise.animationKey}
-          backgroundColor="#F9E8E2"
-          height={280}
-        />
+        <View style={styles.content}>
+          <ExerciseAnimation
+            animationKey={exercise.animationKey}
+            backgroundColor="#F9E8E2"
+            height={280}
+          />
 
         <Text style={styles.title}>{exercise.name}</Text>
 
@@ -91,14 +93,15 @@ export default function ExerciseDetailScreen() {
           ))}
         </View>
 
-       <TouchableOpacity
-  style={styles.startButton}
-  onPress={() => router.push(`/(tabs)/exercise/session/${exercise.id}`)}
->
-  <Text style={styles.startButtonText}>Egzersizi Başlat</Text>
-</TouchableOpacity>
-      </View>
-    </ScrollView>
+          <TouchableOpacity
+            style={styles.startButton}
+            onPress={() => router.push(`/(tabs)/exercise/session-exercise/${exercise.id}`)}
+          >
+            <Text style={styles.startButtonText}>Egzersizi Başlat</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </Screen>
   );
 }
 

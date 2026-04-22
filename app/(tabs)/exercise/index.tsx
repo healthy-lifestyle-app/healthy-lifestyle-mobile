@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,6 +12,7 @@ import { useRouter } from 'expo-router';
 import CreateWorkoutModal from '@/components/exercise/CreateWorkoutModal';
 import { workoutData } from '@/data/workoutData';
 import type { WorkoutItem } from '@/data/workoutData';
+import Screen from '@/components/Screen';
 
 function getWorkoutIcon(type: string): keyof typeof Ionicons.glyphMap {
   switch (type) {
@@ -72,7 +72,7 @@ export default function ExerciseScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <Screen backgroundColor="#FCFBFF" contentStyle={styles.safeArea} edges={['top']}>
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
@@ -218,7 +218,7 @@ export default function ExerciseScreen() {
         onClose={() => setIsCreateModalOpen(false)}
         onSave={handleSaveWorkout}
       />
-    </SafeAreaView>
+    </Screen>
   );
 }
 

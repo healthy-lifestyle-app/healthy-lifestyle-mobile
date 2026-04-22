@@ -1,18 +1,28 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  SafeAreaView,
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  RefreshControl,
   ScrollView,
- StyleSheet,
+  StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
+import { CalendarDays, Camera, Plus, Trash2, X } from 'lucide-react-native';
 
-const STORAGE_KEY = 'nutrition_meals';
+import {
+  deleteMealItem,
+  getMealsByDate,
+  getNutritionSummary,
+  type MealItem,
+  type NutritionMeal,
+  type NutritionSummary,
+} from '@/api/nutrition';
+import Screen from '@/components/Screen';
+import { getNutritionTargets, type NutritionTargets } from '@/lib/nutritionTargets';
 
 const COLORS = {
   background: '#F8F6EC',
@@ -30,353 +40,515 @@ const COLORS = {
   orangeSoft: '#FDE5DA',
   border: '#E6E2F0',
   white: '#FFFFFF',
+  danger: '#E25555',
 };
 
-const summary = {
-  consumed: 1630,
-  target: 2000,
-  carbs: { value: 45, target: 60 },
-  protein: { value: 85, target: 120 },
-  fat: { value: 35, target: 50 },
-};
+function getTodayDate() {
+  return new Date().toISOString().split('T')[0];
+}
 
-const initialMeals = [
-  {
-    key: 'breakfast',
-    title: 'Kahvaltı',
-    consumed: 450,
-    target: 500,
-    bg: '#EEF5DE',
-    border: '#A8C85A',
-    accent: '#A8C85A',
-    foods: ['Yumurta', 'Avokado', 'Tam buğday ekmeği'],
-  },
-  {
-    key: 'lunch',
-    title: 'Öğle',
-    consumed: 620,
-    target: 700,
-    bg: '#FFF4DA',
-    border: '#F2CF7B',
-    accent: '#F2CF7B',
-    foods: ['Tavuk salatası', 'Quinoa', 'Sebzeler'],
-  },
-  {
-    key: 'dinner',
-    title: 'Akşam',
-    consumed: 380,
-    target: 600,
-    bg: '#F0EDFA',
-    border: '#C9C3EA',
-    accent: '#C9C3EA',
-    foods: ['Somon', 'Buharda sebze'],
-  },
-  {
-    key: 'snack',
-    title: 'Atıştırma',
-    consumed: 180,
-    target: 200,
-    bg: '#FDE5DA',
-    border: '#FFB38F',
-    accent: '#FF6B1A',
-    foods: ['Badem', 'Meyve'],
-  },
-];
+function formatDisplayDate(date: string) {
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return date;
 
-type Meal = {
-  key: string;
-  title: string;
-  consumed: number;
-  target: number;
-  bg: string;
-  border: string;
-  accent: string;
-  foods: string[];
-};
+  return parsed.toLocaleDateString('tr-TR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+}
 
-async function getStoredMeals(): Promise<Meal[]> {
-  const rawMeals = await AsyncStorage.getItem(STORAGE_KEY);
-
-  if (!rawMeals) {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(initialMeals));
-    return initialMeals;
+function formatMealType(type: string) {
+  switch (type) {
+    case 'BREAKFAST':
+      return 'Kahvaltı';
+    case 'LUNCH':
+      return 'Öğle';
+    case 'DINNER':
+      return 'Akşam';
+    case 'SNACK':
+      return 'Ara Öğün';
+    default:
+      return type;
   }
-
-  return JSON.parse(rawMeals) as Meal[];
 }
 
-function ProgressBar({
-  progress,
-  color = COLORS.primary,
-  trackColor = COLORS.primaryLight,
-  height = 8,
-}: {
-  progress: number;
-  color?: string;
-  trackColor?: string;
-  height?: number;
-}) {
-  return (
-    <View style={[styles.progressTrack, { backgroundColor: trackColor, height }]}>
-      <View
-        style={[
-          styles.progressFill,
-          {
-            backgroundColor: color,
-            width: `${Math.min(progress * 100, 100)}%`,
-            height,
-          },
-        ]}
-      />
-    </View>
-  );
+function groupMealsByType(meals: NutritionMeal[]) {
+  return {
+    BREAKFAST: meals.filter((meal) => meal.mealType === 'BREAKFAST'),
+    LUNCH: meals.filter((meal) => meal.mealType === 'LUNCH'),
+    DINNER: meals.filter((meal) => meal.mealType === 'DINNER'),
+    SNACK: meals.filter((meal) => meal.mealType === 'SNACK'),
+  };
 }
 
-function MacroCard({
-  value,
-  target,
-  label,
-  color,
-  bg,
-}: {
-  value: number;
-  target: number;
-  label: string;
-  color: string;
-  bg: string;
-}) {
-  return (
-    <View style={[styles.macroCard, { backgroundColor: bg, borderColor: color }]}>
-      <Text style={[styles.macroValue, { color }]}>{value}g</Text>
-      <Text style={styles.macroTarget}>/ {target}g</Text>
-      <Text style={styles.macroLabel}>{label}</Text>
-    </View>
-  );
+function getMealTypeRouteValue(
+  mealType: 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK',
+) {
+  switch (mealType) {
+    case 'BREAKFAST':
+      return 'breakfast';
+    case 'LUNCH':
+      return 'lunch';
+    case 'DINNER':
+      return 'dinner';
+    case 'SNACK':
+      return 'snack';
+    default:
+      return 'breakfast';
+  }
 }
 
-function FoodTag({
-  label,
-  onRemove,
-}: {
-  label: string;
-  onRemove: () => void;
-}) {
-  return (
-    <View style={styles.foodTag}>
-      <Text style={styles.foodTagText}>{label}</Text>
-
-      <TouchableOpacity
-        activeOpacity={0.85}
-        style={styles.foodTagRemoveButton}
-        onPress={onRemove}
-      >
-        <Ionicons name='close' size={12} color={COLORS.white} />
-      </TouchableOpacity>
-    </View>
-  );
+function clamp01(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(1, value));
 }
 
-function MealCard({
-  mealKey,
+function formatInt(value: number) {
+  const v = Number(value ?? 0);
+  return Number.isFinite(v) ? String(Math.round(v)) : '0';
+}
+
+type SummaryCardProps = {
+  title: string;
+  value: string;
+  unit: string;
+  bgColor: string;
+  valueColor: string;
+};
+
+function SummaryCard({
   title,
-  consumed,
-  target,
+  value,
+  unit,
+  bgColor,
+  valueColor,
+}: SummaryCardProps) {
+  return (
+    <View style={[styles.summaryCard, { backgroundColor: bgColor }]}>
+      <Text style={[styles.summaryValue, { color: valueColor }]}>{value}</Text>
+      <Text style={styles.summaryUnit}>{unit}</Text>
+      <Text style={styles.summaryTitle}>{title}</Text>
+    </View>
+  );
+}
+
+function ProgressBar({ progress, color }: { progress: number; color: string }) {
+  const width = `${Math.round(clamp01(progress) * 100)}%` as const;
+
+  return (
+    <View style={styles.progressTrack}>
+      <View style={[styles.progressFill, { backgroundColor: color, width }]} />
+    </View>
+  );
+}
+
+function getMealTargetCalories(
+  mealType: 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK',
+  dailyTarget: number,
+) {
+  const target = Math.max(0, Number(dailyTarget ?? 0));
+  const ratio =
+    mealType === 'BREAKFAST'
+      ? 0.25
+      : mealType === 'LUNCH'
+        ? 0.35
+        : mealType === 'DINNER'
+          ? 0.3
+          : 0.1;
+
+  return Math.max(1, Math.round(target * ratio));
+}
+
+function mealItemChips(meals: NutritionMeal[], limit = 12) {
+  const chips: Array<{ name: string; itemId: string | number; mealId: number }> = [];
+
+  for (const meal of meals) {
+    for (const item of meal.items) {
+      const name = String(item.foodName ?? '').trim();
+      if (!name) continue;
+      if (item.id === undefined || item.id === null) continue;
+      chips.push({ name, itemId: item.id, mealId: meal.id });
+      if (chips.length >= limit) return chips;
+    }
+  }
+  return chips;
+}
+
+function removeMealItemFromMeals(meals: NutritionMeal[], itemId: number | string) {
+  const targetId = String(itemId);
+
+  return meals
+    .map((meal) => {
+      const nextItems = meal.items.filter((item) => String(item.id) !== targetId);
+      if (nextItems.length === meal.items.length) return meal;
+
+      const totalCalories = nextItems.reduce((sum, item) => sum + Number(item.caloriesKcal ?? 0), 0);
+      const totalProtein = nextItems.reduce((sum, item) => sum + Number(item.proteinG ?? 0), 0);
+      const totalCarbs = nextItems.reduce((sum, item) => sum + Number(item.carbsG ?? 0), 0);
+      const totalFat = nextItems.reduce((sum, item) => sum + Number(item.fatG ?? 0), 0);
+
+      return {
+        ...meal,
+        items: nextItems,
+        totalCalories,
+        totalProtein,
+        totalCarbs,
+        totalFat,
+      };
+    })
+    .filter((meal) => meal.items.length > 0);
+}
+
+function TargetsCard({
+  summary,
+  targets,
+}: {
+  summary: NutritionSummary;
+  targets: NutritionTargets;
+}) {
+  const calProgress = (summary.calories ?? 0) / Math.max(1, targets.calories);
+  const pProgress = (summary.protein ?? 0) / Math.max(1, targets.protein);
+  const cProgress = (summary.carbs ?? 0) / Math.max(1, targets.carbs);
+  const fProgress = (summary.fat ?? 0) / Math.max(1, targets.fat);
+
+  return (
+    <View style={styles.targetsCard}>
+      <View style={styles.targetsHeaderRow}>
+        <Text style={styles.targetsTitle}>Günlük Özet</Text>
+        <Text style={styles.targetsSubtitle}>Alınan / Hedef</Text>
+      </View>
+
+      <View style={styles.targetRow}>
+        <View style={styles.targetRowTop}>
+          <Text style={styles.targetLabel}>Kalori</Text>
+          <Text style={styles.targetValue}>
+            {formatInt(summary.calories)} / {formatInt(targets.calories)} kcal
+          </Text>
+        </View>
+        <ProgressBar progress={calProgress} color={COLORS.green} />
+      </View>
+
+      <View style={styles.macroGrid}>
+        <View style={styles.macroCard}>
+          <Text style={styles.macroLabel}>Protein</Text>
+          <Text style={styles.macroValue}>
+            {formatInt(summary.protein)} / {formatInt(targets.protein)} g
+          </Text>
+          <ProgressBar progress={pProgress} color="#5A97F0" />
+        </View>
+        <View style={styles.macroCard}>
+          <Text style={styles.macroLabel}>Karbonhidrat</Text>
+          <Text style={styles.macroValue}>
+            {formatInt(summary.carbs)} / {formatInt(targets.carbs)} g
+          </Text>
+          <ProgressBar progress={cProgress} color="#E56F2D" />
+        </View>
+        <View style={styles.macroCard}>
+          <Text style={styles.macroLabel}>Yağ</Text>
+          <Text style={styles.macroValue}>
+            {formatInt(summary.fat)} / {formatInt(targets.fat)} g
+          </Text>
+          <ProgressBar progress={fProgress} color="#8C80E8" />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function MealItemRow({ item }: { item: MealItem }) {
+  return (
+    <View style={styles.itemRow}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.itemName}>{item.foodName}</Text>
+        <Text style={styles.itemMeta}>
+          {item.quantity} porsiyon
+          {item.amountG ? ` • ${item.amountG} g` : ''}
+          {' • '}
+          {item.caloriesKcal} kcal
+        </Text>
+        <Text style={styles.itemMacros}>
+          P: {item.proteinG}g • K: {item.carbsG}g • Y: {item.fatG}g
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function MealSection({
+  title,
+  mealType,
+  meals,
+  onDeleteMealItem,
   bg,
   border,
   accent,
-  foods,
-  onRemoveFood,
+  dailyTargetCalories,
 }: {
-  mealKey: string;
   title: string;
-  consumed: number;
-  target: number;
+  mealType: 'BREAKFAST' | 'LUNCH' | 'DINNER' | 'SNACK';
+  meals: NutritionMeal[];
+  onDeleteMealItem: (id: number | string) => void;
   bg: string;
   border: string;
   accent: string;
-  foods: string[];
-  onRemoveFood: (mealKey: string, food: string) => void;
+  dailyTargetCalories: number;
 }) {
+  const totalCalories = meals.reduce((sum, meal) => sum + meal.totalCalories, 0);
+  const targetCalories = getMealTargetCalories(mealType, dailyTargetCalories);
+  const chips = mealItemChips(meals, 12);
+  const progress = totalCalories / Math.max(1, targetCalories);
+
   return (
-    <View style={[styles.mealCard, { backgroundColor: bg, borderColor: border }]}>
-      <View style={styles.mealHeader}>
+    <View style={[styles.mealSectionCard, { backgroundColor: bg, borderColor: border }]}>
+      <View style={styles.mealSectionHeader}>
         <View>
-          <Text style={styles.mealTitle}>{title}</Text>
-          <Text style={styles.mealCalories}>
-            <Text style={{ color: accent }}>{consumed} kcal</Text>
-            <Text style={styles.mealCaloriesMuted}> / {target} kcal</Text>
+          <Text style={styles.mealSectionTitle}>{title}</Text>
+          <Text style={styles.mealSectionCalories}>
+            <Text style={{ color: accent, fontWeight: '900' }}>{totalCalories} kcal</Text>
+            <Text style={styles.mealSectionCaloriesMuted}> / {targetCalories} kcal</Text>
           </Text>
         </View>
 
-        <TouchableOpacity
-          activeOpacity={0.85}
-          style={[styles.addIconButton, { backgroundColor: accent }]}
-          onPress={() => router.push(`/nutrition/add-meal?meal=${mealKey}`)}
+        <Pressable
+          style={[styles.addMiniButton, { backgroundColor: accent }]}
+          onPress={() =>
+            router.push({
+              pathname: '/nutrition/add-meal',
+              params: { mealType },
+            })
+          }
         >
-          <Ionicons name='add' size={20} color={COLORS.white} />
-        </TouchableOpacity>
+          <Plus size={16} color="#FFFFFF" strokeWidth={2.4} />
+        </Pressable>
       </View>
 
-      <ProgressBar progress={consumed / target} />
+      <ProgressBar progress={progress} color={accent} />
 
-      <View style={styles.foodTagsWrap}>
-        {foods.length > 0 ? (
-          foods.map((food, index) => (
-            <FoodTag
-              key={`${food}-${index}`}
-              label={food}
-              onRemove={() => onRemoveFood(mealKey, food)}
-            />
-          ))
-        ) : (
-          <Text style={styles.emptyFoodsText}>Henüz besin eklenmedi</Text>
-        )}
-      </View>
+      {chips.length > 0 ? (
+        <View style={styles.chipRow}>
+          {chips.map((chip) => (
+            <View key={`${mealType}-${chip.mealId}-${chip.itemId}-${chip.name}`} style={styles.chip}>
+              <Text style={styles.chipText} numberOfLines={1}>
+                {chip.name}
+              </Text>
+              <Pressable
+                onPress={() => onDeleteMealItem(chip.itemId)}
+                hitSlop={10}
+                style={styles.chipDelete}
+              >
+                <X size={14} color={COLORS.danger} strokeWidth={2.6} />
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {meals.length === 0 ? <Text style={styles.emptyText}>Bu öğün için kayıt yok.</Text> : null}
     </View>
   );
 }
 
 export default function NutritionScreen() {
-  const [meals, setMeals] = useState<Meal[]>(initialMeals);
+  const [date] = useState(getTodayDate());
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [meals, setMeals] = useState<NutritionMeal[]>([]);
+  const [summary, setSummary] = useState<NutritionSummary>({
+    calories: 0,
+    protein: 0,
+    carbs: 0,
+    fat: 0,
+  });
+  const [targets, setTargets] = useState<NutritionTargets>({
+    calories: 2000,
+    protein: 120,
+    carbs: 240,
+    fat: 70,
+  });
 
-  const remaining = summary.target - summary.consumed;
-  const completion = Math.round((summary.consumed / summary.target) * 100);
+  const groupedMeals = useMemo(() => groupMealsByType(meals), [meals]);
 
-  const loadMeals = useCallback(async () => {
+  const loadData = useCallback(async () => {
     try {
-      const storedMeals = await getStoredMeals();
-      setMeals(storedMeals);
+      const [mealsData, summaryData, targetsData] = await Promise.all([
+        getMealsByDate(date),
+        getNutritionSummary(date),
+        getNutritionTargets(),
+      ]);
+
+      setMeals(mealsData);
+      setSummary(summaryData);
+      setTargets(targetsData);
     } catch (error) {
-      console.log('Öğünler yüklenemedi:', error);
+      const message =
+        error instanceof Error ? error.message : 'Beslenme verileri alınamadı.';
+      Alert.alert('Hata', message);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-  }, []);
+  }, [date]);
 
   useFocusEffect(
     useCallback(() => {
-      loadMeals();
-    }, [loadMeals]),
+      loadData();
+    }, [loadData]),
   );
 
-  const handleRemoveFood = async (mealKey: string, foodToRemove: string) => {
-    try {
-      const updatedMeals = meals.map((meal) =>
-        meal.key === mealKey
-          ? {
-              ...meal,
-              foods: meal.foods.filter((food) => food !== foodToRemove),
-            }
-          : meal,
-      );
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+  };
 
-      setMeals(updatedMeals);
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedMeals));
+  const handleDeleteMealItem = async (id: number | string) => {
+    const previousMeals = meals;
+    setMeals((prev) => removeMealItemFromMeals(prev, id));
+    try {
+      await deleteMealItem(id);
+      await loadData();
     } catch (error) {
-      console.log("Besin silinemedi:", error);
+      setMeals(previousMeals);
+      const message = error instanceof Error ? error.message : 'Besin silinemedi.';
+      Alert.alert('Hata', message);
     }
   };
 
-  const visibleMeals = useMemo(() => meals, [meals]);
+  if (loading) {
+    return (
+      <Screen backgroundColor={COLORS.background} contentStyle={styles.loadingWrap}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </Screen>
+    );
+  }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <Screen backgroundColor={COLORS.background} contentStyle={styles.safeArea} edges={['top']}>
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} activeOpacity={0.85}>
-            <Ionicons name='chevron-back' size={20} color={COLORS.text} />
-          </TouchableOpacity>
-
           <View>
             <Text style={styles.title}>Beslenme</Text>
-            <Text style={styles.subtitle}>Bugün 16 Ocak</Text>
+            <View style={styles.dateRow}>
+              <CalendarDays size={16} color={COLORS.muted} strokeWidth={2} />
+              <Text style={styles.subtitle}>{formatDisplayDate(date)}</Text>
+            </View>
           </View>
-        </View>
-
-        <View style={styles.calorieCard}>
-          <Text style={styles.calorieTitle}>Günlük Kalori</Text>
-
-          <View style={styles.calorieValueRow}>
-            <Text style={styles.calorieValue}>{summary.consumed.toLocaleString('tr-TR')}</Text>
-            <Text style={styles.calorieTarget}>
-              {' '}
-              / {summary.target.toLocaleString('tr-TR')} kcal
-            </Text>
-          </View>
-
-          <ProgressBar progress={summary.consumed / summary.target} />
-
-          <View style={styles.calorieFooter}>
-            <Text style={styles.calorieFooterText}>Kalan: {remaining} kcal</Text>
-            <Text style={styles.calorieFooterText}>%{completion} tamamlandı</Text>
-          </View>
-        </View>
-
-        <View style={styles.macroRow}>
-          <MacroCard
-            value={summary.carbs.value}
-            target={summary.carbs.target}
-            label='Karbonhidrat'
-            color={COLORS.green}
-            bg={COLORS.greenSoft}
-          />
-          <MacroCard
-            value={summary.protein.value}
-            target={summary.protein.target}
-            label='Protein'
-            color={COLORS.primary}
-            bg={COLORS.purpleSoft}
-          />
-          <MacroCard
-            value={summary.fat.value}
-            target={summary.fat.target}
-            label='Yağ'
-            color={COLORS.yellow}
-            bg={COLORS.yellowSoft}
-          />
         </View>
 
         <View style={styles.actionsRow}>
-          <TouchableOpacity
-            style={styles.outlineAction}
-            activeOpacity={0.85}
+          <Pressable
+            style={styles.primaryAction}
             onPress={() => router.push('/nutrition/add-meal')}
           >
-            <Ionicons name='add' size={18} color={COLORS.primary} />
-            <Text style={styles.outlineActionText}>Besin Ekle</Text>
-          </TouchableOpacity>
+            <Plus size={18} color={COLORS.white} strokeWidth={2.5} />
+            <Text style={styles.primaryActionText}>Besin Ekle</Text>
+          </Pressable>
 
-          <TouchableOpacity
-            style={styles.photoAction}
-            activeOpacity={0.85}
+          <Pressable
+            style={styles.secondaryAction}
             onPress={() => router.push('/nutrition/scan')}
           >
-            <Ionicons name='camera-outline' size={18} color={COLORS.orange} />
-            <Text style={styles.photoActionText}>Foto Kalori</Text>
-          </TouchableOpacity>
+            <Camera size={18} color={COLORS.primary} strokeWidth={2.3} />
+            <Text style={styles.secondaryActionText}>Foto Kalori</Text>
+          </Pressable>
+        </View>
+
+        <TargetsCard summary={summary} targets={targets} />
+
+        <View style={styles.summaryGrid}>
+          <SummaryCard
+            title="Kalori"
+            value={String(summary.calories ?? 0)}
+            unit="kcal"
+            bgColor={COLORS.greenSoft}
+            valueColor="#94AE3C"
+          />
+          <SummaryCard
+            title="Protein"
+            value={String(summary.protein ?? 0)}
+            unit="g"
+            bgColor="#EAF3FF"
+            valueColor="#5A97F0"
+          />
+          <SummaryCard
+            title="Karbonhidrat"
+            value={String(summary.carbs ?? 0)}
+            unit="g"
+            bgColor={COLORS.orangeSoft}
+            valueColor="#E56F2D"
+          />
+          <SummaryCard
+            title="Yağ"
+            value={String(summary.fat ?? 0)}
+            unit="g"
+            bgColor={COLORS.purpleSoft}
+            valueColor="#8C80E8"
+          />
         </View>
 
         <View style={styles.mealsWrap}>
-          {visibleMeals.map(({ key, ...meal }) => (
-            <MealCard
-              key={key}
-              mealKey={key}
-              onRemoveFood={handleRemoveFood}
-              {...meal}
-            />
-          ))}
+          <MealSection
+            title="Kahvaltı"
+            mealType="BREAKFAST"
+            meals={groupedMeals.BREAKFAST}
+            onDeleteMealItem={handleDeleteMealItem}
+            bg={COLORS.greenSoft}
+            border="rgba(168, 200, 90, 0.35)"
+            accent={COLORS.green}
+            dailyTargetCalories={targets.calories}
+          />
+          <MealSection
+            title="Öğle"
+            mealType="LUNCH"
+            meals={groupedMeals.LUNCH}
+            onDeleteMealItem={handleDeleteMealItem}
+            bg={COLORS.yellowSoft}
+            border="rgba(242, 207, 123, 0.42)"
+            accent={COLORS.yellow}
+            dailyTargetCalories={targets.calories}
+          />
+          <MealSection
+            title="Akşam"
+            mealType="DINNER"
+            meals={groupedMeals.DINNER}
+            onDeleteMealItem={handleDeleteMealItem}
+            bg={COLORS.purpleSoft}
+            border="rgba(201, 195, 234, 0.55)"
+            accent={COLORS.purple}
+            dailyTargetCalories={targets.calories}
+          />
+          <MealSection
+            title="Ara Öğün"
+            mealType="SNACK"
+            meals={groupedMeals.SNACK}
+            onDeleteMealItem={handleDeleteMealItem}
+            bg={COLORS.orangeSoft}
+            border="rgba(255, 107, 26, 0.22)"
+            accent={COLORS.orange}
+            dailyTargetCalories={targets.calories}
+          />
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  loadingWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
   container: {
     flex: 1,
@@ -384,118 +556,27 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingTop: 14,
     paddingBottom: 120,
   },
 
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 20,
-  },
-  backButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#EEF1E6',
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginBottom: 18,
   },
   title: {
     fontSize: 31,
-    fontWeight: '700',
+    fontWeight: '800',
     color: COLORS.text,
+  },
+  dateRow: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   subtitle: {
-    marginTop: 2,
     fontSize: 15,
     color: '#4E535F',
-  },
-
-  calorieCard: {
-    backgroundColor: '#F2F1F6',
-    borderRadius: 24,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#DED9ED',
-    marginBottom: 18,
-  },
-  calorieTitle: {
-    textAlign: 'center',
-    fontSize: 20,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: 10,
-  },
-  calorieValueRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'baseline',
-    marginBottom: 18,
-  },
-  calorieValue: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: COLORS.green,
-  },
-  calorieTarget: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#747B89',
-  },
-  calorieFooter: {
-    marginTop: 14,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  calorieFooterText: {
-    fontSize: 13,
-    color: '#6E7380',
-    fontWeight: '500',
-  },
-
-  progressTrack: {
-    width: '100%',
-    borderRadius: 999,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    borderRadius: 999,
-  },
-
-  macroRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 10,
-    marginBottom: 18,
-  },
-  macroCard: {
-    flex: 1,
-    minHeight: 118,
-    borderRadius: 22,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 8,
-  },
-  macroValue: {
-    fontSize: 20,
-    fontWeight: '800',
-    marginBottom: 4,
-  },
-  macroTarget: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#7A8090',
-    marginBottom: 14,
-  },
-  macroLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#464C59',
-    textAlign: 'center',
   },
 
   actionsRow: {
@@ -503,110 +584,294 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 18,
   },
-  outlineAction: {
+  primaryAction: {
     flex: 1,
-    height: 46,
-    borderRadius: 23,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: '#BDB6DA',
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.green,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#FAF9FE',
   },
-  outlineActionText: {
-    fontSize: 14,
-    fontWeight: '700',
+  primaryActionText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: COLORS.white,
+  },
+  secondaryAction: {
+    flex: 1,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#E4E0EF',
+    backgroundColor: '#F4F2FA',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  secondaryActionText: {
+    fontSize: 15,
+    fontWeight: '800',
     color: COLORS.primary,
   },
-  photoAction: {
-    flex: 1,
-    height: 46,
-    borderRadius: 23,
+
+  targetsCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#F2B29E',
-    backgroundColor: '#FFF1EA',
+    borderColor: COLORS.border,
+    padding: 16,
+    marginBottom: 18,
+  },
+  targetsHeaderRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    marginBottom: 12,
+    gap: 10,
+  },
+  targetsTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: COLORS.text,
+  },
+  targetsSubtitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.muted,
+  },
+  targetRow: {
+    marginBottom: 14,
+  },
+  targetRowTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginBottom: 8,
+    gap: 10,
+  },
+  targetLabel: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  targetValue: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
+  macroGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  macroCard: {
+    flexGrow: 1,
+    flexBasis: '48%',
+    minWidth: 150,
+    backgroundColor: '#FAF9FD',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#ECE8F5',
+    padding: 12,
+    gap: 6,
+  },
+  macroLabel: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.text,
+  },
+  macroValue: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#6E7483',
+  },
+  progressTrack: {
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: '#EFEAF6',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 999,
+  },
+
+  summaryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 20,
+  },
+  summaryCard: {
+    width: '48.2%',
+    minHeight: 126,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    paddingVertical: 18,
+    paddingHorizontal: 10,
   },
-  photoActionText: {
+  summaryValue: {
+    fontSize: 24,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  summaryUnit: {
     fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.orange,
+    color: '#6F7685',
+    marginBottom: 10,
+  },
+  summaryTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: COLORS.text,
+    textAlign: 'center',
   },
 
   mealsWrap: {
     gap: 16,
   },
-  mealCard: {
+  mealSectionCard: {
     borderRadius: 24,
     borderWidth: 1,
     padding: 16,
   },
-  mealHeader: {
+  mealSectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 18,
+    marginBottom: 10,
   },
-  mealTitle: {
+  mealSectionTitle: {
     fontSize: 21,
     fontWeight: '800',
     color: COLORS.text,
     marginBottom: 4,
   },
-  mealCalories: {
-    fontSize: 17,
+  mealSectionCalories: {
+    fontSize: 16,
     fontWeight: '700',
   },
-  mealCaloriesMuted: {
+  mealSectionCaloriesMuted: {
     color: '#7C8290',
-    fontWeight: '600',
+    fontWeight: '800',
   },
-  addIconButton: {
+  addMiniButton: {
     width: 34,
     height: 34,
     borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
   },
-
-  foodTagsWrap: {
+  emptyText: {
+    fontSize: 15,
+    color: '#7A8090',
+    marginTop: 6,
+  },
+  chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 16,
+    gap: 10,
+    marginTop: 12,
+    marginBottom: 6,
   },
-  foodTag: {
+  chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.72)',
+    backgroundColor: 'rgba(255,255,255,0.86)',
+    borderRadius: 999,
     paddingLeft: 12,
     paddingRight: 8,
-    paddingVertical: 8,
-    borderRadius: 999,
-    gap: 6,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.06)',
+    maxWidth: '100%',
   },
-  foodTagText: {
+  chipText: {
+    fontSize: 12.5,
+    fontWeight: '900',
+    color: '#5C568E',
+    maxWidth: 150,
+  },
+  chipDelete: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(226, 85, 85, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+    zIndex: 2,
+  },
+
+  loggedMealCard: {
+    marginTop: 12,
+    backgroundColor: '#FAF9FD',
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#ECE8F5',
+  },
+  loggedMealHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  loggedMealTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: COLORS.text,
+    marginBottom: 4,
+  },
+  loggedMealSubtitle: {
     fontSize: 13,
+    color: '#6E7483',
     fontWeight: '600',
-    color: '#5D6380',
+    lineHeight: 18,
   },
-  foodTagRemoveButton: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: COLORS.orange,
+  deleteButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#FFF1F1',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emptyFoodsText: {
+
+  itemsWrap: {
+    gap: 10,
+  },
+  itemRow: {
+    backgroundColor: COLORS.white,
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#EEEAF6',
+  },
+  itemName: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: COLORS.text,
+    marginBottom: 4,
+  },
+  itemMeta: {
     fontSize: 13,
-    color: '#7E8695',
-    fontWeight: '500',
+    color: '#6E7483',
+    marginBottom: 4,
+  },
+  itemMacros: {
+    fontSize: 12,
+    color: COLORS.primary,
+    fontWeight: '700',
   },
 });
