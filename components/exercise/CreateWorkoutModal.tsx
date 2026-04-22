@@ -12,37 +12,52 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { exerciseData } from '@/data/exerciseData';
-import type { WorkoutItem, WorkoutType } from '@/data/workoutData';
+import type { ExerciseOption, WorkoutTypeLabel } from '@/api/activity';
 
 type CreateWorkoutModalProps = {
   visible: boolean;
+  exerciseOptions: ExerciseOption[];
   onClose: () => void;
-  onSave: (workout: WorkoutItem) => void;
+  onSave: (payload: {
+    name: string;
+    type: WorkoutTypeLabel;
+    estimatedDurationMin?: number;
+    estimatedCalories?: number;
+    exercises: Array<{
+      exerciseId: number;
+      orderNo: number;
+      durationSec?: number;
+      reps?: number;
+      sets?: number;
+      restSec?: number;
+    }>;
+  }) => Promise<void>;
 };
 
 type SelectedExerciseItem = {
-  exerciseId: string;
+  exerciseId: number;
   order: number;
-  duration: string;
+  durationSec: number;
   sets?: number;
   reps?: number;
 };
 
-const WORKOUT_TYPES: WorkoutType[] = ['HIIT', 'Güç', 'Yoga', 'Kardiyo'];
+const WORKOUT_TYPES: WorkoutTypeLabel[] = ['HIIT', 'Güç', 'Yoga', 'Kardiyo'];
 
 export default function CreateWorkoutModal({
   visible,
+  exerciseOptions,
   onClose,
   onSave,
 }: CreateWorkoutModalProps) {
   const [name, setName] = useState('');
-  const [type, setType] = useState<WorkoutType>('HIIT');
+  const [type, setType] = useState<WorkoutTypeLabel>('HIIT');
   const [duration, setDuration] = useState('30');
   const [calories, setCalories] = useState('200');
+  const [saving, setSaving] = useState(false);
 
-  const [selectedExerciseId, setSelectedExerciseId] = useState<string>(
-    exerciseData[0]?.id ?? ''
+  const [selectedExerciseId, setSelectedExerciseId] = useState<number>(
+    Number(exerciseOptions[0]?.id ?? 0)
   );
   const [exerciseDuration, setExerciseDuration] = useState('30');
   const [exerciseSets, setExerciseSets] = useState('');
@@ -53,13 +68,13 @@ export default function CreateWorkoutModal({
   >([]);
 
   const selectedExercise = useMemo(() => {
-    return exerciseData.find((item) => item.id === selectedExerciseId);
-  }, [selectedExerciseId]);
+    return exerciseOptions.find((item) => Number(item.id) === selectedExerciseId);
+  }, [exerciseOptions, selectedExerciseId]);
 
   const selectedExerciseObjects = useMemo(() => {
     return selectedExercises
       .map((item) => {
-        const exercise = exerciseData.find((e) => e.id === item.exerciseId);
+        const exercise = exerciseOptions.find((e) => Number(e.id) === item.exerciseId);
 
         if (!exercise) {
           return null;
@@ -74,14 +89,14 @@ export default function CreateWorkoutModal({
         };
       })
       .filter(Boolean);
-  }, [selectedExercises]);
+  }, [exerciseOptions, selectedExercises]);
 
   const resetForm = () => {
     setName('');
     setType('HIIT');
     setDuration('30');
     setCalories('200');
-    setSelectedExerciseId(exerciseData[0]?.id ?? '');
+    setSelectedExerciseId(Number(exerciseOptions[0]?.id ?? 0));
     setExerciseDuration('30');
     setExerciseSets('');
     setExerciseReps('');
@@ -89,6 +104,7 @@ export default function CreateWorkoutModal({
   };
 
   const handleClose = () => {
+    if (saving) return;
     resetForm();
     onClose();
   };
@@ -117,7 +133,7 @@ export default function CreateWorkoutModal({
       {
         exerciseId: selectedExerciseId,
         order: prev.length + 1,
-        duration: exerciseDuration.trim() || '30',
+        durationSec: Number(exerciseDuration.trim() || '30'),
         sets: parsedSets,
         reps: parsedReps,
       },
@@ -139,7 +155,7 @@ export default function CreateWorkoutModal({
     );
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const trimmedName = name.trim();
 
     if (!trimmedName) {
@@ -152,29 +168,30 @@ export default function CreateWorkoutModal({
       return;
     }
 
-    const firstExercise = exerciseData.find(
-      (item) => item.id === selectedExercises[0]?.exerciseId
-    );
-
-    const newWorkout: WorkoutItem = {
-      id: `custom-${Date.now()}`,
-      name: trimmedName,
-      type,
-      duration: `${duration || '30'} dk`,
-      calories: `${calories || '200'} kcal`,
-      difficulty: 'Orta',
-      coverAnimationKey: firstExercise?.animationKey ?? 'jumping-jack',
-      description: 'Kullanıcı tarafından oluşturulan antrenman.',
-      exercises: selectedExercises.map((item, index) => ({
-        exerciseId: item.exerciseId,
-        order: index + 1,
-      })),
-      isFavorite: false,
-    };
-
-    onSave(newWorkout);
-    resetForm();
-    onClose();
+    try {
+      setSaving(true);
+      await onSave({
+        name: trimmedName,
+        type,
+        estimatedDurationMin: Number(duration) || 30,
+        estimatedCalories: Number(calories) || 200,
+        exercises: selectedExercises.map((item, index) => ({
+          exerciseId: item.exerciseId,
+          orderNo: index + 1,
+          durationSec: item.durationSec || undefined,
+          sets: item.sets,
+          reps: item.reps,
+        })),
+      });
+      resetForm();
+      onClose();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Antrenman kaydedilemedi.';
+      Alert.alert('Hata', message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -261,8 +278,8 @@ export default function CreateWorkoutModal({
             <View style={styles.exercisePickerBox}>
               <Text style={styles.pickerLabel}>Egzersiz Seç</Text>
               <View style={styles.exerciseOptions}>
-                {exerciseData.map((exercise) => {
-                  const isSelected = selectedExerciseId === exercise.id;
+                {exerciseOptions.map((exercise) => {
+                  const isSelected = selectedExerciseId === Number(exercise.id);
 
                   return (
                     <TouchableOpacity
@@ -272,9 +289,8 @@ export default function CreateWorkoutModal({
                         isSelected && styles.exerciseOptionActive,
                       ]}
                       onPress={() => {
-                        setSelectedExerciseId(exercise.id);
-                        const onlyNumber = exercise.duration.replace(/\D/g, '');
-                        setExerciseDuration(onlyNumber || '30');
+                        setSelectedExerciseId(Number(exercise.id));
+                        setExerciseDuration(String(exercise.defaultDurationSec ?? 30));
                       }}
                     >
                       <Text
@@ -344,7 +360,7 @@ export default function CreateWorkoutModal({
                         <View style={styles.selectedTextArea}>
                           <Text style={styles.selectedName}>{exercise.name}</Text>
                           <Text style={styles.selectedMeta}>
-                            {exercise.selectedDuration} dk
+                            {exercise.durationSec} sn
                             {exercise.sets ? ` • ${exercise.sets} set` : ''}
                             {exercise.reps ? ` • ${exercise.reps} tekrar` : ''}
                           </Text>
@@ -360,8 +376,10 @@ export default function CreateWorkoutModal({
               </View>
             )}
 
-            <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-              <Text style={styles.saveButtonText}>Antrenmanı Kaydet</Text>
+            <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={saving}>
+              <Text style={styles.saveButtonText}>
+                {saving ? 'Kaydediliyor...' : 'Antrenmanı Kaydet'}
+              </Text>
             </TouchableOpacity>
           </ScrollView>
         </View>
@@ -380,7 +398,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sheet: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8F6EC',
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     maxHeight: '88%',
@@ -407,7 +425,7 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 23,
-    backgroundColor: '#F3F1FA',
+    backgroundColor: '#ECE9F6',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -421,7 +439,7 @@ const styles = StyleSheet.create({
   input: {
     height: 56,
     borderRadius: 18,
-    backgroundColor: '#F6F4FA',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 18,
     fontSize: 16,
     color: '#111827',
@@ -437,12 +455,12 @@ const styles = StyleSheet.create({
     width: '48%',
     minHeight: 56,
     borderRadius: 18,
-    backgroundColor: '#F6F4FA',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   typeButtonActive: {
-    backgroundColor: '#F7672C',
+    backgroundColor: '#5A97F0',
   },
   typeButtonText: {
     fontSize: 17,
@@ -461,7 +479,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: '#E9E7F0',
+    backgroundColor: '#E6E2F0',
     marginVertical: 16,
   },
   sectionTitle: {
@@ -488,10 +506,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 999,
-    backgroundColor: '#F6F4FA',
+    backgroundColor: '#FFFFFF',
   },
   exerciseOptionActive: {
-    backgroundColor: '#EEF1E0',
+    backgroundColor: '#EAF3FF',
   },
   exerciseOptionText: {
     fontSize: 14,
@@ -499,7 +517,7 @@ const styles = StyleSheet.create({
     color: '#5C568E',
   },
   exerciseOptionTextActive: {
-    color: '#A8C85A',
+    color: '#5A97F0',
   },
   smallInfoRow: {
     flexDirection: 'row',
@@ -510,7 +528,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 52,
     borderRadius: 18,
-    backgroundColor: '#F6F4FA',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
     fontSize: 16,
     color: '#111827',
@@ -518,7 +536,7 @@ const styles = StyleSheet.create({
   addButton: {
     height: 56,
     borderRadius: 18,
-    backgroundColor: '#EEF1E0',
+    backgroundColor: '#EEF5DE',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -531,7 +549,7 @@ const styles = StyleSheet.create({
     color: '#A8C85A',
   },
   selectedList: {
-    backgroundColor: '#FCFBFF',
+    backgroundColor: '#F0EDFA',
     borderRadius: 20,
     padding: 14,
     marginBottom: 22,
@@ -563,7 +581,7 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: '#EEF1E0',
+    backgroundColor: '#EEF5DE',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -585,7 +603,7 @@ const styles = StyleSheet.create({
   saveButton: {
     height: 58,
     borderRadius: 20,
-    backgroundColor: '#B8B2D5',
+    backgroundColor: '#A8C85A',
     alignItems: 'center',
     justifyContent: 'center',
   },

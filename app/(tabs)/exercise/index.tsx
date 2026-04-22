@@ -1,17 +1,17 @@
-import React, { useState } from 'react';
-import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 
+import {
+  createWorkout,
+  getExerciseOptionsFromWorkouts,
+  getWorkouts,
+  type ExerciseOption,
+  type MobileWorkout,
+  type WorkoutTypeLabel,
+} from '@/api/activity';
 import CreateWorkoutModal from '@/components/exercise/CreateWorkoutModal';
-import { workoutData } from '@/data/workoutData';
-import type { WorkoutItem } from '@/data/workoutData';
 import Screen from '@/components/Screen';
 
 function getWorkoutIcon(type: string): keyof typeof Ionicons.glyphMap {
@@ -61,14 +61,67 @@ function getWorkoutColors(type: string) {
 
 export default function ExerciseScreen() {
   const router = useRouter();
-
-  const [workouts, setWorkouts] = useState<WorkoutItem[]>(workoutData);
+  const [workouts, setWorkouts] = useState<MobileWorkout[]>([]);
+  const [exerciseOptions, setExerciseOptions] = useState<ExerciseOption[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const quickStartWorkout = workouts[0];
 
-  const handleSaveWorkout = (newWorkout: WorkoutItem) => {
-    setWorkouts((prev) => [newWorkout, ...prev]);
+  const loadWorkouts = useCallback(async () => {
+    try {
+      const [data, options] = await Promise.all([
+        getWorkouts(),
+        getExerciseOptionsFromWorkouts(),
+      ]);
+      setWorkouts(data);
+      setExerciseOptions(options);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Antrenmanlar alınamadı.';
+      Alert.alert('Hata', message);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadWorkouts();
+    }, [loadWorkouts]),
+  );
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadWorkouts();
+  };
+
+  const handleCreateWorkout = async (payload: {
+    name: string;
+    type: WorkoutTypeLabel;
+    estimatedDurationMin?: number;
+    estimatedCalories?: number;
+    exercises: Array<{
+      exerciseId: number;
+      orderNo: number;
+      durationSec?: number;
+      reps?: number;
+      sets?: number;
+      restSec?: number;
+    }>;
+  }) => {
+    await createWorkout({
+      name: payload.name,
+      type: payload.type,
+      estimatedDurationMin: payload.estimatedDurationMin,
+      estimatedCalories: payload.estimatedCalories,
+      description: 'Mobil uygulamadan oluşturulan antrenman.',
+      color: '#A8C85A',
+      icon: 'dumbbell',
+      exercises: payload.exercises,
+    });
+    await loadWorkouts();
   };
 
   return (
@@ -85,7 +138,13 @@ export default function ExerciseScreen() {
           </View>
         </View>
 
-        {quickStartWorkout && (
+        {loading ? (
+          <View style={styles.loadingWrap}>
+            <ActivityIndicator size="large" color="#A8C85A" />
+          </View>
+        ) : null}
+
+        {!loading && quickStartWorkout && (
           <TouchableOpacity
             style={styles.quickStartCard}
             activeOpacity={0.9}
@@ -135,7 +194,9 @@ export default function ExerciseScreen() {
             activeOpacity={0.9}
           >
             <Ionicons name="add" size={18} color="#A8C85A" />
-            <Text style={styles.newWorkoutButtonText}>Yeni Antreman Oluştur</Text>
+            <Text style={styles.newWorkoutButtonText}>
+              Yeni Antrenman Oluştur
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -215,8 +276,9 @@ export default function ExerciseScreen() {
 
       <CreateWorkoutModal
         visible={isCreateModalOpen}
+        exerciseOptions={exerciseOptions}
         onClose={() => setIsCreateModalOpen(false)}
-        onSave={handleSaveWorkout}
+        onSave={handleCreateWorkout}
       />
     </Screen>
   );
@@ -238,6 +300,11 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: 24,
+  },
+  loadingWrap: {
+    paddingVertical: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     fontSize: 28,
