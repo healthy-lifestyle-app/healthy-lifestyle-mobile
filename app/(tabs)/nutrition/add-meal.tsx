@@ -1,18 +1,26 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  SafeAreaView,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const STORAGE_KEY = 'nutrition_meals';
+import {
+  createMeal,
+  getFoods,
+  type Food,
+  type MealType,
+} from '@/api/nutrition';
+import Screen from '@/components/Screen';
 
 const COLORS = {
   background: '#F8F6EC',
@@ -31,314 +39,438 @@ const COLORS = {
   orange: '#FF6B1A',
   orangeSoft: '#FDE5DA',
   white: '#FFFFFF',
+  softInput: '#FBFAFE',
+  disabled: '#E7E7EA',
+  disabledText: '#B5B7BD',
 };
 
-const mealOptions = [
-  { key: 'breakfast', label: 'Kahvaltı', color: COLORS.green, bg: COLORS.greenSoft },
-  { key: 'lunch', label: 'Öğle', color: COLORS.yellow, bg: COLORS.yellowSoft },
-  { key: 'dinner', label: 'Akşam', color: '#B7B1E2', bg: COLORS.purpleSoft },
-  { key: 'snack', label: 'Atıştırma', color: COLORS.orange, bg: COLORS.orangeSoft },
-];
-
-const defaultMeals = [
+const MEAL_OPTIONS: {
+  label: string;
+  value: MealType;
+  color: string;
+  bg: string;
+}[] = [
   {
-    key: 'breakfast',
-    title: 'Kahvaltı',
-    consumed: 450,
-    target: 500,
-    bg: '#EEF5DE',
-    border: '#A8C85A',
-    accent: '#A8C85A',
-    foods: ['Yumurta', 'Avokado', 'Tam buğday ekmeği'],
+    label: 'Kahvaltı',
+    value: 'BREAKFAST',
+    color: COLORS.green,
+    bg: COLORS.greenSoft,
   },
   {
-    key: 'lunch',
-    title: 'Öğle',
-    consumed: 620,
-    target: 700,
-    bg: '#FFF4DA',
-    border: '#F2CF7B',
-    accent: '#F2CF7B',
-    foods: ['Tavuk salatası', 'Quinoa', 'Sebzeler'],
+    label: 'Öğle',
+    value: 'LUNCH',
+    color: COLORS.yellow,
+    bg: COLORS.yellowSoft,
   },
   {
-    key: 'dinner',
-    title: 'Akşam',
-    consumed: 380,
-    target: 600,
-    bg: '#F0EDFA',
-    border: '#C9C3EA',
-    accent: '#C9C3EA',
-    foods: ['Somon', 'Buharda sebze'],
+    label: 'Akşam',
+    value: 'DINNER',
+    color: COLORS.purple,
+    bg: COLORS.purpleSoft,
   },
   {
-    key: 'snack',
-    title: 'Atıştırma',
-    consumed: 180,
-    target: 200,
-    bg: '#FDE5DA',
-    border: '#FFB38F',
-    accent: '#FF6B1A',
-    foods: ['Badem', 'Meyve'],
+    label: 'Ara Öğün',
+    value: 'SNACK',
+    color: COLORS.orange,
+    bg: COLORS.orangeSoft,
   },
 ];
 
-const foodLibraryByMeal: Record<string, { id: string; name: string; kcal: number }[]> = {
-  breakfast: [
-    { id: '1', name: 'Yumurta', kcal: 155 },
-    { id: '2', name: 'Avokado', kcal: 160 },
-    { id: '3', name: 'Tam buğday ekmeği', kcal: 80 },
-    { id: '4', name: 'Tavuk göğsü', kcal: 165 },
-    { id: '5', name: 'Somon', kcal: 208 },
-    { id: '6', name: 'Quinoa', kcal: 120 },
-    { id: '7', name: 'Brokoli', kcal: 55 },
-    { id: '8', name: 'Badem', kcal: 160 },
-    { id: '9', name: 'Yoğurt', kcal: 100 },
-    { id: '10', name: 'Elma', kcal: 95 },
-  ],
-  lunch: [
-    { id: '11', name: 'Tavuk salatası', kcal: 220 },
-    { id: '12', name: 'Quinoa', kcal: 120 },
-    { id: '13', name: 'Sebzeler', kcal: 60 },
-    { id: '14', name: 'Yoğurt', kcal: 100 },
-    { id: '15', name: 'Pirinç', kcal: 130 },
-    { id: '16', name: 'Izgara tavuk', kcal: 185 },
-    { id: '17', name: 'Mercimek', kcal: 116 },
-    { id: '18', name: 'Ayran', kcal: 75 },
-  ],
-  dinner: [
-    { id: '19', name: 'Somon', kcal: 208 },
-    { id: '20', name: 'Buharda sebze', kcal: 90 },
-    { id: '21', name: 'Zeytinyağlı salata', kcal: 110 },
-    { id: '22', name: 'Yoğurt', kcal: 100 },
-    { id: '23', name: 'Çorba', kcal: 140 },
-    { id: '24', name: 'Izgara köfte', kcal: 240 },
-    { id: '25', name: 'Bulgur', kcal: 150 },
-    { id: '26', name: 'Kabuklu badem', kcal: 160 },
-  ],
-  snack: [
-    { id: '27', name: 'Muz', kcal: 105 },
-    { id: '28', name: 'Havuç', kcal: 25 },
-    { id: '29', name: 'Pirinç', kcal: 130 },
-    { id: '30', name: 'Makarna', kcal: 158 },
-    { id: '31', name: 'Peynir', kcal: 113 },
-    { id: '32', name: 'Süt', kcal: 61 },
-    { id: '33', name: 'Portakal', kcal: 62 },
-    { id: '34', name: 'Çilek', kcal: 32 },
-    { id: '35', name: 'Ceviz', kcal: 185 },
-    { id: '36', name: 'Zeytin', kcal: 115 },
-  ],
+type SelectedFoodItem = {
+  food: Food;
+  quantity: string;
 };
+
+function round1(value: number) {
+  return Math.round(value * 10) / 10;
+}
+
+function getMealLabel(mealType: MealType) {
+  return MEAL_OPTIONS.find((item) => item.value === mealType)?.label ?? 'Öğün';
+}
+
+function parseQuantity(value: string) {
+  const parsed = Number(value.replace(',', '.'));
+  if (Number.isNaN(parsed) || parsed <= 0) return 0;
+  return parsed;
+}
 
 export default function AddMealScreen() {
-  const params = useLocalSearchParams();
-  const mealParam = Array.isArray(params.meal) ? params.meal[0] : params.meal;
-  const initialMeal = typeof mealParam === 'string' ? mealParam : '';
+  const params = useLocalSearchParams<{ mealType?: string; meal?: string }>();
 
-  const [selectedMeal, setSelectedMeal] = useState<string | null>(initialMeal || null);
+  const initialMealType = useMemo<MealType>(() => {
+    const value = params.mealType ?? params.meal;
+    const normalized = typeof value === 'string' ? value.trim() : '';
+    const upper = normalized.toUpperCase();
+
+    if (
+      upper === 'BREAKFAST' ||
+      upper === 'LUNCH' ||
+      upper === 'DINNER' ||
+      upper === 'SNACK'
+    ) {
+      return upper as MealType;
+    }
+
+    if (normalized === 'breakfast') return 'BREAKFAST';
+    if (normalized === 'lunch') return 'LUNCH';
+    if (normalized === 'dinner') return 'DINNER';
+    if (normalized === 'snack') return 'SNACK';
+
+    return 'BREAKFAST';
+  }, [params.mealType, params.meal]);
+
+  const [mealType, setMealType] = useState<MealType>(initialMealType);
   const [search, setSearch] = useState('');
-  const [selectedFoodIds, setSelectedFoodIds] = useState<string[]>([]);
+  const [foods, setFoods] = useState<Food[]>([]);
+  const [loadingFoods, setLoadingFoods] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [selectedFoods, setSelectedFoods] = useState<SelectedFoodItem[]>([]);
 
-  const selectedMealMeta = mealOptions.find((item) => item.key === selectedMeal);
-  const sheetTitle = `${selectedMealMeta?.label ?? 'Öğün'} - Besin Ekle`;
+  useEffect(() => {
+    setMealType(initialMealType);
+  }, [initialMealType]);
 
-  const foods = useMemo(() => {
-    if (!selectedMeal) return [];
-    const baseList = foodLibraryByMeal[selectedMeal] ?? [];
-    const keyword = search.trim().toLowerCase();
+  useEffect(() => {
+    let isMounted = true;
 
-    if (!keyword) return baseList;
+    async function loadFoods() {
+      try {
+        setLoadingFoods(true);
 
-    return baseList.filter((food) => food.name.toLowerCase().includes(keyword));
-  }, [search, selectedMeal]);
+        const response = await getFoods({
+          search: search.trim() || undefined,
+          page: 1,
+          limit: 20,
+        });
 
-  const selectedFoods = useMemo(() => {
-    if (!selectedMeal) return [];
-    const allFoods = foodLibraryByMeal[selectedMeal] ?? [];
-    return allFoods.filter((food) => selectedFoodIds.includes(food.id));
-  }, [selectedFoodIds, selectedMeal]);
+        if (!isMounted) return;
+        setFoods(response.items ?? []);
+      } catch (error) {
+        if (!isMounted) return;
+        const message =
+          error instanceof Error ? error.message : 'Besinler alınamadı.';
+        Alert.alert('Hata', message);
+      } finally {
+        if (isMounted) {
+          setLoadingFoods(false);
+        }
+      }
+    }
 
-  const totalCalories = selectedFoods.reduce((sum, food) => sum + food.kcal, 0);
+    const timeout = setTimeout(loadFoods, 300);
 
-  const toggleFood = (foodId: string) => {
-    setSelectedFoodIds((prev) =>
-      prev.includes(foodId)
-        ? prev.filter((id) => id !== foodId)
-        : [...prev, foodId],
+    return () => {
+      isMounted = false;
+      clearTimeout(timeout);
+    };
+  }, [search]);
+
+  const toggleFood = (food: Food) => {
+    setSelectedFoods((prev) => {
+      const exists = prev.some((item) => item.food.id === food.id);
+
+      if (exists) {
+        return prev.filter((item) => item.food.id !== food.id);
+      }
+
+      return [...prev, { food, quantity: '1' }];
+    });
+  };
+
+  const updateFoodQuantity = (foodId: number | string, value: string) => {
+    setSelectedFoods((prev) =>
+      prev.map((item) =>
+        item.food.id === foodId ? { ...item, quantity: value } : item,
+      ),
     );
   };
 
-  const handleSelectMeal = (mealKey: string) => {
-    setSelectedMeal(mealKey);
-    setSelectedFoodIds([]);
-    setSearch('');
+  const isFoodSelected = (foodId: number | string) => {
+    return selectedFoods.some((item) => item.food.id === foodId);
   };
 
-  const handleAddFoods = async () => {
-    if (!selectedMeal || selectedFoods.length === 0) return;
+  const totals = useMemo(() => {
+    return selectedFoods.reduce(
+      (acc, item) => {
+        const qty = parseQuantity(item.quantity);
+        if (qty <= 0) return acc;
+
+        acc.totalGram += (item.food.servingSizeG ?? 0) * qty;
+        acc.calories += (item.food.caloriesKcal ?? 0) * qty;
+        acc.protein += (item.food.proteinG ?? 0) * qty;
+        acc.carbs += (item.food.carbsG ?? 0) * qty;
+        acc.fat += (item.food.fatG ?? 0) * qty;
+
+        return acc;
+      },
+      {
+        totalGram: 0,
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+      },
+    );
+  }, [selectedFoods]);
+
+  const validItems = useMemo(() => {
+  return selectedFoods
+    .map((item) => {
+      const qty = parseQuantity(item.quantity);
+      const servingSize = Number(item.food.servingSizeG ?? 0);
+
+      return {
+        foodId: String(item.food.id),
+        quantity: 1,
+        amountG: qty * servingSize,
+      };
+    })
+    .filter((item) => item.amountG > 0);
+}, [selectedFoods]);
+
+  const canSubmit = validItems.length > 0 && !saving;
+
+  const handleSave = async () => {
+    if (validItems.length === 0) {
+      Alert.alert('Uyarı', 'En az bir besin seçip geçerli miktar girmelisin.');
+      return;
+    }
 
     try {
-      const rawMeals = await AsyncStorage.getItem(STORAGE_KEY);
-      const currentMeals = rawMeals ? JSON.parse(rawMeals) : defaultMeals;
+      setSaving(true);
 
-      const addedFoodNames = selectedFoods.map((food) => food.name);
+      const payload = {
+        mealType,
+        mealTime: new Date().toISOString(),
+        items: validItems,
+      };
 
-      const updatedMeals = currentMeals.map((meal: (typeof defaultMeals)[number]) => {
-        if (meal.key !== selectedMeal) return meal;
+      console.log('CREATE_MEAL_PAYLOAD', payload);
 
-        const mergedFoods = Array.from(new Set([...meal.foods, ...addedFoodNames]));
+      const createdMeal = await createMeal(payload);
 
-        return {
-          ...meal,
-          foods: mergedFoods,
-        };
-      });
+      console.log('CREATE_MEAL_RESPONSE', createdMeal);
 
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedMeals));
-      router.back();
+      router.replace('/(tabs)/nutrition');
     } catch (error) {
-      console.log('Besin eklenemedi:', error);
+      console.error('CREATE_MEAL_ERROR', error);
+
+      const message =
+        error instanceof Error ? error.message : 'Öğün eklenemedi.';
+      Alert.alert('Hata', message);
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.screen}>
-        <View style={styles.backgroundContent}>
-          <Text style={styles.fakeTitle}>Beslenme</Text>
-          <Text style={styles.fakeSubtitle}>Bugün 16 Ocak</Text>
+    <Screen backgroundColor={COLORS.background} contentStyle={styles.safeArea} edges={['top']}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={styles.screen}>
+          <View style={styles.backgroundContent}>
+            <Text style={styles.fakeTitle}>Beslenme</Text>
+            <Text style={styles.fakeSubtitle}>Bugün</Text>
 
-          <View style={styles.fakeCard} />
-          <View style={styles.fakeMacroRow}>
-            <View style={styles.fakeMacroCard} />
-            <View style={styles.fakeMacroCard} />
-            <View style={styles.fakeMacroCard} />
+            <View style={styles.fakeCard} />
+            <View style={styles.fakeMacroRow}>
+              <View style={styles.fakeMacroCard} />
+              <View style={styles.fakeMacroCard} />
+            </View>
+            <View style={[styles.fakeMacroRow, { marginTop: 12 }]}>
+              <View style={styles.fakeMacroCard} />
+              <View style={styles.fakeMacroCard} />
+            </View>
           </View>
-        </View>
 
-        <View style={styles.overlay} />
+          <View style={styles.overlay} />
 
-        <View style={styles.sheet}>
-          {!selectedMeal ? (
-            <>
-              <View style={styles.sheetHeader}>
-                <Text style={styles.sheetTitle}>Hangi Öğüne Eklemek İstersiniz?</Text>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>
+                {getMealLabel(mealType)} - Besin Ekle
+              </Text>
 
-                <TouchableOpacity
-                  style={styles.closeButton}
-                  activeOpacity={0.85}
-                  onPress={() => router.back()}
-                >
-                  <Ionicons name='close' size={18} color={COLORS.primary} />
-                </TouchableOpacity>
-              </View>
+              <Pressable
+                style={styles.closeButton}
+                onPress={() => router.replace('/(tabs)/nutrition')}>
+                <Ionicons name="close" size={18} color={COLORS.primary} />
+              </Pressable>
+            </View>
 
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.sheetContent}>
+              <Text style={styles.sectionLabel}>Öğün Türü</Text>
               <View style={styles.mealGrid}>
-                {mealOptions.map((meal) => (
-                  <TouchableOpacity
-                    key={meal.key}
-                    activeOpacity={0.88}
-                    style={[
-                      styles.mealOptionCard,
-                      { backgroundColor: meal.bg, borderColor: meal.color },
-                    ]}
-                    onPress={() => handleSelectMeal(meal.key)}
-                  >
-                    <Text style={styles.mealOptionText}>{meal.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </>
-          ) : (
-            <>
-              <View style={styles.sheetHeader}>
-                <Text style={styles.sheetTitle}>{sheetTitle}</Text>
+                {MEAL_OPTIONS.map((item) => {
+                  const active = item.value === mealType;
 
-                <TouchableOpacity
-                  style={styles.closeButton}
-                  activeOpacity={0.85}
-                  onPress={() => router.back()}
-                >
-                  <Ionicons name='close' size={18} color={COLORS.primary} />
-                </TouchableOpacity>
+                  return (
+                    <Pressable
+                      key={item.value}
+                      onPress={() => setMealType(item.value)}
+                      style={[
+                        styles.mealOptionCard,
+                        { backgroundColor: item.bg, borderColor: item.color },
+                        active && styles.mealOptionCardActive,
+                      ]}>
+                      <Text
+                        style={[
+                          styles.mealOptionText,
+                          { color: active ? item.color : COLORS.primary },
+                        ]}>
+                        {item.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
               </View>
 
+              <Text style={styles.sectionLabel}>Besin Ara</Text>
               <TextInput
                 value={search}
                 onChangeText={setSearch}
-                placeholder='Besin ara...'
-                placeholderTextColor='#9AA1AF'
+                placeholder="Örn: yumurta, tavuk, muz"
+                placeholderTextColor="#9AA1AF"
                 style={styles.searchInput}
               />
 
-              <ScrollView
-                style={styles.foodList}
-                contentContainerStyle={styles.foodListContent}
-                showsVerticalScrollIndicator={false}
-              >
+              <Text style={styles.sectionLabel}>Besin Seç</Text>
+
+              {loadingFoods ? (
+                <View style={styles.loadingBox}>
+                  <ActivityIndicator color={COLORS.primary} />
+                </View>
+              ) : foods.length === 0 ? (
+                <View style={styles.emptyBox}>
+                  <Text style={styles.emptyText}>Sonuç bulunamadı.</Text>
+                </View>
+              ) : (
                 <View style={styles.foodGrid}>
                   {foods.map((food) => {
-                    const selected = selectedFoodIds.includes(food.id);
+                    const selected = isFoodSelected(food.id);
 
                     return (
-                      <TouchableOpacity
-                        key={food.id}
-                        activeOpacity={0.88}
+                      <Pressable
+                        key={String(food.id)}
+                        onPress={() => toggleFood(food)}
                         style={[
                           styles.foodCard,
-                          selected && {
-                            borderColor: COLORS.green,
-                            backgroundColor: COLORS.white,
-                          },
-                        ]}
-                        onPress={() => toggleFood(food.id)}
-                      >
+                          selected && styles.foodCardSelected,
+                        ]}>
                         {selected && (
                           <View style={styles.checkBadge}>
-                            <Ionicons name='checkmark' size={12} color={COLORS.white} />
+                            <Ionicons
+                              name="checkmark"
+                              size={12}
+                              color={COLORS.white}
+                            />
                           </View>
                         )}
 
-                        <Text style={styles.foodName}>{food.name}</Text>
-                        <Text style={styles.foodCalories}>{food.kcal} kcal</Text>
-                      </TouchableOpacity>
+                        <Text style={styles.foodName} numberOfLines={2}>
+                          {food.name}
+                        </Text>
+
+                        <Text style={styles.foodMeta}>
+                          {food.servingSizeG} g • {food.caloriesKcal} kcal
+                        </Text>
+                      </Pressable>
                     );
                   })}
                 </View>
-              </ScrollView>
+              )}
 
-              <View style={styles.bottomInfoRow}>
-                <Text style={styles.bottomInfoText}>
-                  {selectedFoods.length} besin seçildi
+              {selectedFoods.length > 0 && (
+                <>
+                  <Text style={styles.sectionLabel}>Seçilen Besinler</Text>
+
+                  <View style={styles.selectedList}>
+                    {selectedFoods.map((item) => (
+                      <View key={String(item.food.id)} style={styles.selectedCard}>
+                        <View style={styles.selectedTopRow}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.selectedFoodName}>
+                              {item.food.name}
+                            </Text>
+                            <Text style={styles.selectedFoodMeta}>
+                              {item.food.servingSizeG} g • {item.food.caloriesKcal} kcal
+                            </Text>
+                          </View>
+
+                          <Pressable
+                            onPress={() => toggleFood(item.food)}
+                            style={styles.removeButton}>
+                            <Ionicons
+                              name="close"
+                              size={16}
+                              color={COLORS.primary}
+                            />
+                          </Pressable>
+                        </View>
+
+                        <Text style={styles.quantityLabel}>Porsiyon Adedi</Text>
+                        <TextInput
+                          value={item.quantity}
+                          onChangeText={(value) =>
+                            updateFoodQuantity(item.food.id, value)
+                          }
+                          placeholder="1"
+                          keyboardType="numeric"
+                          placeholderTextColor="#9AA1AF"
+                          style={styles.quantityInput}
+                        />
+                      </View>
+                    ))}
+                  </View>
+                </>
+              )}
+
+              <View style={styles.previewCard}>
+                <Text style={styles.previewTitle}>Seçilen Öğün Özeti</Text>
+                <Text style={styles.previewLine}>
+                  Besin sayısı: {selectedFoods.length}
                 </Text>
-                <Text style={styles.totalText}>Toplam: {totalCalories} kcal</Text>
+                <Text style={styles.previewLine}>
+                  Toplam gram: {round1(totals.totalGram)} g
+                </Text>
+                <Text style={styles.previewLine}>
+                  Kalori: {round1(totals.calories)} kcal
+                </Text>
+                <Text style={styles.previewLine}>
+                  Protein: {round1(totals.protein)} g
+                </Text>
+                <Text style={styles.previewLine}>
+                  Karbonhidrat: {round1(totals.carbs)} g
+                </Text>
+                <Text style={styles.previewLine}>
+                  Yağ: {round1(totals.fat)} g
+                </Text>
               </View>
 
-              <TouchableOpacity
-                activeOpacity={0.88}
+              <Pressable
+                onPress={handleSave}
+                disabled={!canSubmit}
                 style={[
                   styles.primaryButton,
-                  selectedFoods.length === 0 && styles.disabledButton,
-                ]}
-                disabled={selectedFoods.length === 0}
-                onPress={handleAddFoods}
-              >
+                  !canSubmit && styles.disabledButton,
+                ]}>
                 <Text
                   style={[
                     styles.primaryButtonText,
-                    selectedFoods.length === 0 && styles.disabledButtonText,
-                  ]}
-                >
-                  {selectedFoods.length > 0
-                    ? `${selectedFoods.length} Besini Ekle`
-                    : 'Besin Seç'}
+                    !canSubmit && styles.disabledButtonText,
+                  ]}>
+                  {saving ? 'Kaydediliyor...' : 'Öğünü Kaydet'}
                 </Text>
-              </TouchableOpacity>
-            </>
-          )}
+              </Pressable>
+            </ScrollView>
+          </View>
         </View>
-      </View>
-    </SafeAreaView>
+      </KeyboardAvoidingView>
+    </Screen>
   );
 }
 
@@ -361,7 +493,7 @@ const styles = StyleSheet.create({
   fakeTitle: {
     fontSize: 30,
     fontWeight: '800',
-    color: '#222532',
+    color: COLORS.text,
     marginBottom: 4,
   },
   fakeSubtitle: {
@@ -370,18 +502,18 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   fakeCard: {
-    height: 190,
+    height: 160,
     borderRadius: 28,
     backgroundColor: '#ECEAF4',
     marginBottom: 16,
   },
   fakeMacroRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 12,
   },
   fakeMacroCard: {
     flex: 1,
-    height: 116,
+    height: 98,
     borderRadius: 22,
     backgroundColor: '#EEF1E6',
   },
@@ -392,8 +524,8 @@ const styles = StyleSheet.create({
   },
 
   sheet: {
-    minHeight: 300,
-    maxHeight: '72%',
+    minHeight: 420,
+    maxHeight: '84%',
     backgroundColor: COLORS.sheet,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
@@ -407,7 +539,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 14,
   },
   sheetTitle: {
     flex: 1,
@@ -424,54 +556,91 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  sheetContent: {
+    paddingBottom: 12,
+  },
+
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: COLORS.text,
+    marginBottom: 10,
+    marginTop: 8,
+  },
 
   mealGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
+    marginBottom: 8,
   },
   mealOptionCard: {
     width: '47%',
-    minHeight: 72,
+    minHeight: 68,
     borderRadius: 16,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 12,
   },
+  mealOptionCardActive: {
+    transform: [{ scale: 1.01 }],
+    borderWidth: 2.5,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
   mealOptionText: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+    textAlign: 'center',
   },
 
   searchInput: {
-    height: 44,
+    height: 46,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#DDD9EA',
-    backgroundColor: '#FBFAFE',
+    backgroundColor: COLORS.softInput,
     paddingHorizontal: 14,
     fontSize: 14,
     color: COLORS.text,
-    marginBottom: 14,
+    marginBottom: 8,
   },
 
-  foodList: {
-    flexGrow: 0,
+  loadingBox: {
+    paddingVertical: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  foodListContent: {
-    paddingBottom: 12,
+  emptyBox: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#ECE8F4',
+    backgroundColor: '#F6F4FA',
+    paddingVertical: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
   },
+  emptyText: {
+    fontSize: 14,
+    color: COLORS.muted,
+    fontWeight: '600',
+  },
+
   foodGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     gap: 12,
+    marginBottom: 8,
   },
   foodCard: {
     width: '47.5%',
-    minHeight: 76,
+    minHeight: 82,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#E7E4F0',
@@ -481,6 +650,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 12,
     position: 'relative',
+  },
+  foodCardSelected: {
+    borderColor: COLORS.green,
+    backgroundColor: COLORS.white,
   },
   checkBadge: {
     position: 'absolute',
@@ -500,29 +673,85 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 4,
   },
-  foodCalories: {
-    fontSize: 13,
+  foodMeta: {
+    fontSize: 12,
     fontWeight: '700',
-    color: COLORS.green,
+    color: COLORS.muted,
     textAlign: 'center',
   },
 
-  bottomInfoRow: {
-    marginTop: 8,
-    marginBottom: 12,
+  selectedList: {
+    gap: 10,
+    marginBottom: 8,
+  },
+  selectedCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E3DEEF',
+    backgroundColor: '#F8F7FB',
+    padding: 12,
+  },
+  selectedTopRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 10,
   },
-  bottomInfoText: {
+  selectedFoodName: {
     fontSize: 14,
-    color: '#6E7483',
-    fontWeight: '500',
-  },
-  totalText: {
-    fontSize: 14,
-    color: COLORS.green,
     fontWeight: '800',
+    color: COLORS.text,
+    marginBottom: 4,
+  },
+  selectedFoodMeta: {
+    fontSize: 12,
+    color: COLORS.muted,
+    fontWeight: '700',
+  },
+  removeButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#EFEDF8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quantityLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 8,
+  },
+  quantityInput: {
+    height: 42,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#DDD9EA',
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: COLORS.text,
+  },
+
+  previewCard: {
+    marginTop: 8,
+    marginBottom: 14,
+    borderRadius: 18,
+    backgroundColor: '#F1EEF8',
+    borderWidth: 1,
+    borderColor: '#E1DAF0',
+    padding: 14,
+  },
+  previewTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: COLORS.primary,
+    marginBottom: 10,
+  },
+  previewLine: {
+    fontSize: 14,
+    color: COLORS.text,
+    marginBottom: 6,
   },
 
   primaryButton: {
@@ -533,7 +762,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   disabledButton: {
-    backgroundColor: '#E7E7EA',
+    backgroundColor: COLORS.disabled,
   },
   primaryButtonText: {
     fontSize: 15,
@@ -541,6 +770,6 @@ const styles = StyleSheet.create({
     color: COLORS.white,
   },
   disabledButtonText: {
-    color: '#B5B7BD',
+    color: COLORS.disabledText,
   },
 });

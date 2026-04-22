@@ -1,80 +1,98 @@
-import React, { useState } from "react";
+import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
+  Alert,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
-  Keyboard,
   ScrollView,
-} from "react-native";
-import { router } from "expo-router";
-import Button from "@/components/button";
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { router } from 'expo-router';
+
+import Button from '@/components/button';
+import { useAuth } from '@/context/AuthContext';
 
 export default function Signup() {
-  const [email, setEmail] = useState("");
-  const [pass, setPass] = useState("");
+  const { signUp } = useAuth();
 
-  const canSubmit = email.includes("@") && pass.length >= 6;
+  const [email, setEmail] = useState('');
+  const [pass, setPass] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleNext = () => {
+  const canSubmit = email.includes('@') && pass.length >= 6 && !isSubmitting;
+
+  const handleNext = async () => {
     Keyboard.dismiss();
 
     if (!canSubmit) return;
 
-    router.replace("/onboarding/welcome");
+    try {
+      setIsSubmitting(true);
+
+      await signUp({
+        email: email.trim(),
+        password: pass,
+      });
+
+      router.replace('/onboarding/welcome');
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Kayıt oluşturulurken bir hata oluştu.';
+
+      Alert.alert('Kayıt başarısız', message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: "#FFFFFF" }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+      style={{ flex: 1, backgroundColor: '#FFFFFF' }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ flexGrow: 1 }}
-        showsVerticalScrollIndicator={false}
-      >
+        showsVerticalScrollIndicator={false}>
         <View
           style={{
             flex: 1,
             paddingHorizontal: 24,
             paddingTop: 36,
             paddingBottom: 24,
-            justifyContent: "space-between",
-          }}
-        >
+            justifyContent: 'space-between',
+          }}>
           <View style={{ marginTop: 24 }}>
             <Text
               style={{
                 fontSize: 31,
-                fontWeight: "900",
-                color: "#2B2B2B",
+                fontWeight: '900',
+                color: '#2B2B2B',
                 marginBottom: 8,
-              }}
-            >
+              }}>
               Mail ile Kayıt 📩
             </Text>
 
             <Text
               style={{
-                color: "#6F6F6F",
+                color: '#6F6F6F',
                 fontSize: 14,
                 lineHeight: 21,
                 marginBottom: 18,
-              }}
-            >
+              }}>
               Hesabını oluşturmak için mail adresini ve şifreni gir.
             </Text>
 
             <View
               style={{
-                backgroundColor: "#A8C85A",
+                backgroundColor: '#A8C85A',
                 borderRadius: 18,
                 padding: 10,
                 gap: 10,
-              }}
-            >
+              }}>
               <TextInput
                 value={email}
                 onChangeText={setEmail}
@@ -84,13 +102,14 @@ export default function Signup() {
                 autoCorrect={false}
                 keyboardType="email-address"
                 returnKeyType="next"
+                editable={!isSubmitting}
                 style={{
-                  backgroundColor: "#FFFFFF",
+                  backgroundColor: '#FFFFFF',
                   borderRadius: 10,
                   paddingHorizontal: 14,
                   paddingVertical: 11,
                   fontSize: 14,
-                  color: "#2B2B2B",
+                  color: '#2B2B2B',
                 }}
               />
 
@@ -104,13 +123,14 @@ export default function Signup() {
                 autoCorrect={false}
                 returnKeyType="done"
                 onSubmitEditing={Keyboard.dismiss}
+                editable={!isSubmitting}
                 style={{
-                  backgroundColor: "#FFFFFF",
+                  backgroundColor: '#FFFFFF',
                   borderRadius: 10,
                   paddingHorizontal: 14,
                   paddingVertical: 11,
                   fontSize: 14,
-                  color: "#2B2B2B",
+                  color: '#2B2B2B',
                 }}
               />
             </View>
@@ -118,10 +138,10 @@ export default function Signup() {
 
           <View style={{ marginTop: 24 }}>
             <Button
-              title="Devam et ›"
+              title={isSubmitting ? 'Kayıt oluşturuluyor...' : 'Devam et ›'}
               onPress={handleNext}
               disabled={!canSubmit}
-              style={{ backgroundColor: "#A8C85A", borderRadius: 999 }}
+              style={{ backgroundColor: '#A8C85A', borderRadius: 999 }}
             />
           </View>
         </View>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ScrollView, View, Text, Pressable, StyleSheet } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
+import Screen from '@/components/Screen';
 
 type OnboardingProfile = {
   name?: string;
@@ -128,11 +129,12 @@ export default function HomeScreen() {
   }, []);
 
   return (
-    <ScrollView
-  showsVerticalScrollIndicator={false}
-  contentContainerStyle={[styles.container, { flexGrow: 1 }]}
->
-      <View style={styles.content}>
+    <Screen backgroundColor="#F8F5EE" edges={['top']}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.container, { flexGrow: 1 }]}
+      >
+        <View style={styles.content}>
         <View style={styles.headerRow}>
           <View>
             <Text style={styles.greeting}>Merhaba, {userName}!</Text>
@@ -282,15 +284,16 @@ export default function HomeScreen() {
             <Text style={styles.scanActionSub}>AI ile analiz et</Text>
           </Pressable>
         </View>
-      </View>
-    </ScrollView>
+        </View>
+      </ScrollView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 18,
-    paddingTop: 22,
+    paddingTop: 4,
     paddingBottom: 140,
     backgroundColor: "#F8F5EE",
   },
@@ -302,7 +305,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 4,
+    marginTop: 0,
   },
   greeting: {
     fontSize: 18,

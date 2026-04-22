@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -7,10 +7,22 @@ import {
   Platform,
   Keyboard,
   ScrollView,
+  StyleSheet,
 } from "react-native";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Button from "@/components/button";
+import Screen from '@/components/Screen';
+
+const COLORS = {
+  background: '#F8F6EC',
+  text: '#1F2430',
+  muted: '#7E8695',
+  border: '#E6E2F0',
+  card: '#FFFFFF',
+  soft: '#F8F7FB',
+  green: '#A8C85A',
+};
 
 export default function Body() {
   const [height, setHeight] = useState("");
@@ -38,163 +50,139 @@ export default function Body() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: "#FFFFFF" }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ flexGrow: 1 }}
-        showsVerticalScrollIndicator={false}
+    <Screen backgroundColor={COLORS.background} edges={['top']}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View
-          style={{
-            flex: 1,
-            paddingHorizontal: 24,
-            paddingTop: 36,
-            paddingBottom: 24,
-            justifyContent: "space-between",
-          }}
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
         >
-          <View style={{ marginTop: 24 }}>
-            <Text
-              style={{
-                fontSize: 31,
-                fontWeight: "900",
-                color: "#2B2B2B",
-                marginBottom: 8,
-              }}
-            >
-              Vücut Bilgilerin 📏
-            </Text>
+          <View style={styles.screen}>
+            <View>
+              <Text style={styles.title}>Vücut Bilgilerin</Text>
+              <Text style={styles.subtitle}>
+                Sağlıklı hedefler belirlemek için boy, kilo ve hedef kilonu alalım.
+              </Text>
 
-            <Text
-              style={{
-                color: "#6F6F6F",
-                fontSize: 14,
-                lineHeight: 21,
-                marginBottom: 18,
-              }}
-            >
-              Sağlıklı hedefler belirlemek için boy, kilo ve hedef kilonu alalım.
-            </Text>
+              <View style={styles.formCard}>
+                <TextInput
+                  value={height}
+                  onChangeText={setHeight}
+                  placeholder="Boy (cm)"
+                  placeholderTextColor="rgba(31,36,48,0.45)"
+                  keyboardType="number-pad"
+                  returnKeyType="done"
+                  onSubmitEditing={Keyboard.dismiss}
+                  style={styles.input}
+                />
 
-            <View
-              style={{
-                backgroundColor: "#A8C85A",
-                borderRadius: 18,
-                padding: 10,
-                gap: 10,
-              }}
-            >
-              <TextInput
-                value={height}
-                onChangeText={setHeight}
-                placeholder="Boy (cm)"
-                placeholderTextColor="#A7A7A7"
-                keyboardType="number-pad"
-                returnKeyType="done"
-                onSubmitEditing={Keyboard.dismiss}
-                style={{
-                  backgroundColor: "#FFFFFF",
-                  borderRadius: 10,
-                  paddingHorizontal: 14,
-                  paddingVertical: 11,
-                  fontSize: 14,
-                  color: "#2B2B2B",
-                }}
-              />
+                <TextInput
+                  value={weight}
+                  onChangeText={setWeight}
+                  placeholder="Kilo (kg)"
+                  placeholderTextColor="rgba(31,36,48,0.45)"
+                  keyboardType="number-pad"
+                  returnKeyType="done"
+                  onSubmitEditing={Keyboard.dismiss}
+                  style={styles.input}
+                />
 
-              <TextInput
-                value={weight}
-                onChangeText={setWeight}
-                placeholder="Kilo (kg)"
-                placeholderTextColor="#A7A7A7"
-                keyboardType="number-pad"
-                returnKeyType="done"
-                onSubmitEditing={Keyboard.dismiss}
-                style={{
-                  backgroundColor: "#FFFFFF",
-                  borderRadius: 10,
-                  paddingHorizontal: 14,
-                  paddingVertical: 11,
-                  fontSize: 14,
-                  color: "#2B2B2B",
-                }}
-              />
+                <TextInput
+                  value={targetWeight}
+                  onChangeText={setTargetWeight}
+                  placeholder="Hedef Kilo (kg)"
+                  placeholderTextColor="rgba(31,36,48,0.45)"
+                  keyboardType="number-pad"
+                  returnKeyType="done"
+                  onSubmitEditing={Keyboard.dismiss}
+                  style={styles.input}
+                />
+              </View>
 
-              <TextInput
-                value={targetWeight}
-                onChangeText={setTargetWeight}
-                placeholder="Hedef Kilo (kg)"
-                placeholderTextColor="#A7A7A7"
-                keyboardType="number-pad"
-                returnKeyType="done"
-                onSubmitEditing={Keyboard.dismiss}
-                style={{
-                  backgroundColor: "#FFFFFF",
-                  borderRadius: 10,
-                  paddingHorizontal: 14,
-                  paddingVertical: 11,
-                  fontSize: 14,
-                  color: "#2B2B2B",
-                }}
-              />
+              <View style={styles.dots}>
+                <View style={[styles.dot, styles.dotActive]} />
+                <View style={[styles.dot, styles.dotActive]} />
+                <View style={[styles.dot, styles.dotActive]} />
+                <View style={styles.dot} />
+              </View>
             </View>
 
-            <View
-              style={{
-                flexDirection: "row",
-                gap: 8,
-                marginTop: 18,
-                justifyContent: "center",
-              }}
-            >
-              <View
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: 99,
-                  backgroundColor: "#A8C85A",
-                }}
-              />
-              <View
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: 99,
-                  backgroundColor: "#A8C85A",
-                }}
-              />
-              <View
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: 99,
-                  backgroundColor: "#A8C85A",
-                }}
-              />
-              <View
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: 99,
-                  backgroundColor: "#D9D9D9",
-                }}
+            <View style={styles.footer}>
+              <Button
+                title="Devam et ›"
+                onPress={handleNext}
+                disabled={!canNext}
+                style={{ backgroundColor: COLORS.green, borderRadius: 24 }}
               />
             </View>
           </View>
-
-          <View style={{ marginTop: 24 }}>
-            <Button
-              title="Devam et ›"
-              onPress={handleNext}
-              disabled={!canNext}
-              style={{ backgroundColor: "#A8C85A", borderRadius: 999 }}
-            />
-          </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  scrollContent: {
+    flexGrow: 1,
+  },
+  screen: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 24,
+    justifyContent: 'space-between',
+  },
+  title: {
+    fontSize: 30,
+    fontWeight: '900',
+    color: COLORS.text,
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  subtitle: {
+    color: COLORS.muted,
+    fontSize: 14,
+    lineHeight: 21,
+    marginBottom: 18,
+  },
+  formCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 12,
+    gap: 10,
+  },
+  input: {
+    backgroundColor: COLORS.soft,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(94,87,143,0.14)',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: COLORS.text,
+  },
+  dots: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 18,
+    justifyContent: 'center',
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 99,
+    backgroundColor: 'rgba(31,36,48,0.18)',
+  },
+  dotActive: {
+    backgroundColor: COLORS.green,
+  },
+  footer: {
+    marginTop: 24,
+  },
+});

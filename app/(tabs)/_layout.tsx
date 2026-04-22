@@ -31,14 +31,15 @@ export default function TabLayout() {
         />
 
         <Tabs.Screen
-          name="nutrition"
-          options={{
-            title: 'Beslenme',
-            tabBarIcon: ({ color }) => (
-              <IconSymbol size={28} name="leaf.fill" color={color} />
-            ),
-          }}
-        />
+  name="nutrition"
+  options={{
+    title: 'Beslenme',
+    popToTopOnBlur: true,
+    tabBarIcon: ({ color }) => (
+      <IconSymbol size={28} name="leaf.fill" color={color} />
+    ),
+  }}
+/>
 
         <Tabs.Screen
           name="exercise/index"

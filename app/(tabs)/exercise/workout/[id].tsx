@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import ExerciseAnimation from '@/components/exercise/ExerciseAnimation';
 import { exerciseData } from '@/data/exerciseData';
 import { workoutData } from '@/data/workoutData';
+import Screen from '@/components/Screen';
 
 export default function WorkoutDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -63,18 +64,19 @@ export default function WorkoutDetailScreen() {
         : '#F44336';
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-        <Ionicons name="arrow-back" size={22} color="#5C568E" />
-        <Text style={styles.backButtonText}>Geri</Text>
-      </TouchableOpacity>
+    <Screen backgroundColor="#FCFBFF" edges={['top']}>
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={22} color="#5C568E" />
+          <Text style={styles.backButtonText}>Geri</Text>
+        </TouchableOpacity>
 
-      <View style={styles.content}>
-        <ExerciseAnimation
-          animationKey={workout.coverAnimationKey}
-          backgroundColor="#F9E8E2"
-          height={280}
-        />
+        <View style={styles.content}>
+          <ExerciseAnimation
+            animationKey={workout.coverAnimationKey}
+            backgroundColor="#F9E8E2"
+            height={280}
+          />
 
         <Text style={styles.title}>{workout.name}</Text>
 
@@ -154,14 +156,15 @@ export default function WorkoutDetailScreen() {
           })}
         </View>
 
-        <TouchableOpacity
-          style={styles.startButton}
-          onPress={() => router.push(`/(tabs)/exercise/session/${workout.id}`)}
-        >
-          <Text style={styles.startButtonText}>Antrenmanı Başlat</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+          <TouchableOpacity
+            style={styles.startButton}
+            onPress={() => router.push(`/(tabs)/exercise/session/${workout.id}`)}
+          >
+            <Text style={styles.startButtonText}>Antrenmanı Başlat</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </Screen>
   );
 }
 

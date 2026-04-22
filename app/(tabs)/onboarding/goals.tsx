@@ -1,8 +1,9 @@
-import React, { useState } from "react";
-import { View, Text, Pressable } from "react-native";
-import { router } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import Button from "@/components/button";
+import React, { useState } from 'react';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { router } from 'expo-router';
+import Button from '@/components/button';
+import Screen from '@/components/Screen';
+import { setOnboardingDone } from '@/lib/storage';
 
 type Goal = {
   key: string;
@@ -59,160 +60,136 @@ export default function Goals() {
   );
 };
 
-  const handleFinish = async () => {
-    if (!canFinish) return;
-
-    const raw = await AsyncStorage.getItem("onboarding_profile");
-    const profile = raw ? JSON.parse(raw) : {};
-
-    profile.goals = selected;
-
-    await AsyncStorage.setItem("onboarding_profile", JSON.stringify(profile));
-    await AsyncStorage.setItem("onboarding_done", "1");
-
-    router.replace("/(tabs)/home");
-  };
+const handleFinish = async () => {
+  await setOnboardingDone();
+  router.replace('/(tabs)/home');
+};
 
   return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: "#FFFFFF",
-        paddingHorizontal: 24,
-        paddingTop: 36,
-        paddingBottom: 24,
-        justifyContent: "space-between",
-      }}
-    >
-      <View style={{ marginTop: 24 }}>
-        <Text
-          style={{
-            fontSize: 20,
-            fontWeight: "800",
-            color: "#2F2F2F",
-            marginBottom: 6,
-          }}
-        >
-          Hedefin ne ?
-        </Text>
+    <Screen backgroundColor="#F8F6EC" edges={['top']}>
+      <View style={styles.screen}>
+        <View>
+          <Text style={styles.title}>Hedefin ne?</Text>
+          <Text style={styles.subtitle}>Birlikte çalışalım.</Text>
 
-        <Text
-          style={{
-            fontSize: 12,
-            color: "#6F6F6F",
-            marginBottom: 18,
-          }}
-        >
-          Birlikte çalışalım
-        </Text>
+          <View style={styles.list}>
+            {GOALS.map((goal) => {
+              const isSelected = selected.includes(goal.key);
 
-        <View style={{ gap: 12 }}>
-          {GOALS.map((goal) => {
-            const isSelected = selected.includes(goal.key);
-
-            return (
-              <Pressable
-                key={goal.key}
-                onPress={() => toggle(goal.key)}
-                style={{
-                  minHeight: 64,
-                  borderRadius: 18,
-                  backgroundColor: goal.bgColor,
-                  paddingHorizontal: 12,
-                  paddingVertical: 10,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  borderWidth: isSelected ? 4 : 1,
-                  borderColor: isSelected ? "#6E9135" : "transparent",
-                }}
-              >
-                <View
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 12,
-                    backgroundColor: goal.iconBg,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    marginRight: 12,
-                  }}
+              return (
+                <Pressable
+                  key={goal.key}
+                  onPress={() => toggle(goal.key)}
+                  style={[
+                    styles.goalCard,
+                    { backgroundColor: goal.bgColor },
+                    isSelected && styles.goalCardSelected,
+                  ]}
                 >
-                  <Text
-                    style={{
-                      fontSize: 18,
-                      color:
-                        goal.textColor === "#FFFFFF" ? "#FFFFFF" : "#7C7C7C",
-                    }}
-                  >
-                    {goal.icon}
+                  <View style={[styles.goalIcon, { backgroundColor: goal.iconBg }]}>
+                    <Text style={styles.goalIconText}>{goal.icon}</Text>
+                  </View>
+
+                  <Text style={[styles.goalText, { color: goal.textColor ?? '#1F2430' }]}>
+                    {goal.label}
                   </Text>
-                </View>
+                </Pressable>
+              );
+            })}
+          </View>
 
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: "700",
-                    color: goal.textColor ?? "#2B2B2B",
-                  }}
-                >
-                  {goal.label}
-                </Text>
-              </Pressable>
-            );
-          })}
+          <View style={styles.dots}>
+            <View style={[styles.dot, styles.dotActive]} />
+            <View style={[styles.dot, styles.dotActive]} />
+            <View style={[styles.dot, styles.dotActive]} />
+            <View style={[styles.dot, styles.dotActive]} />
+          </View>
         </View>
 
-        <View
-          style={{
-            flexDirection: "row",
-            gap: 8,
-            marginTop: 20,
-            justifyContent: "center",
-          }}
-        >
-          <View
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: 99,
-              backgroundColor: "#A8C85A",
-            }}
-          />
-          <View
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: 99,
-              backgroundColor: "#A8C85A",
-            }}
-          />
-          <View
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: 99,
-              backgroundColor: "#A8C85A",
-            }}
-          />
-          <View
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: 99,
-              backgroundColor: "#A8C85A",
-            }}
+        <View style={styles.footer}>
+          <Button
+            title="Bitir ›"
+            onPress={handleFinish}
+            disabled={!canFinish}
+            style={{ backgroundColor: '#A8C85A', borderRadius: 24 }}
           />
         </View>
       </View>
-
-      <View style={{ marginTop: 24 }}>
-        <Button
-          title="Devam et ›"
-          onPress={handleFinish}
-          disabled={!canFinish}
-          style={{ backgroundColor: "#A8C85A", borderRadius: 999 }}
-        />
-      </View>
-    </View>
+    </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 24,
+    justifyContent: 'space-between',
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#1F2430',
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  subtitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#7E8695',
+    marginBottom: 16,
+  },
+  list: {
+    gap: 12,
+  },
+  goalCard: {
+    minHeight: 66,
+    borderRadius: 24,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.06)',
+  },
+  goalCardSelected: {
+    borderColor: '#6E9135',
+    borderWidth: 2,
+  },
+  goalIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  goalIconText: {
+    fontSize: 18,
+    color: '#2F3440',
+    fontWeight: '800',
+  },
+  goalText: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  dots: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 20,
+    justifyContent: 'center',
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 99,
+    backgroundColor: 'rgba(31,36,48,0.18)',
+  },
+  dotActive: {
+    backgroundColor: '#A8C85A',
+  },
+  footer: {
+    marginTop: 24,
+  },
+});
