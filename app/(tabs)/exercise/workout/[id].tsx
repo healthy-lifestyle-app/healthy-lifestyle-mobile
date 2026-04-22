@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -7,11 +9,11 @@ import {
   View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
 import ExerciseAnimation from '@/components/exercise/ExerciseAnimation';
-import { exerciseData } from '@/data/exerciseData';
-import { workoutData } from '@/data/workoutData';
+import { getWorkoutById, type MobileWorkout } from '@/api/activity';
 import Screen from '@/components/Screen';
 
 export default function WorkoutDetailScreen() {
@@ -19,42 +21,47 @@ export default function WorkoutDetailScreen() {
   const router = useRouter();
 
   const workoutId = Array.isArray(id) ? id[0] : id;
-  const workout = workoutData.find((item) => item.id === workoutId);
+  const [workout, setWorkout] = useState<MobileWorkout | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const loadWorkout = useCallback(async () => {
+    if (!workoutId) return;
+    try {
+      const data = await getWorkoutById(workoutId);
+      setWorkout(data);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Antrenman alınamadı.';
+      Alert.alert('Hata', message);
+      setWorkout(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [workoutId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadWorkout();
+    }, [loadWorkout]),
+  );
+
+  if (loading) {
+    return (
+      <Screen backgroundColor="#FCFBFF" contentStyle={styles.notFoundContainer} edges={['top']}>
+        <ActivityIndicator size="large" color="#A8C85A" />
+      </Screen>
+    );
+  }
 
   if (!workout) {
     return (
       <View style={styles.notFoundContainer}>
         <Text style={styles.notFoundText}>Antrenman bulunamadı</Text>
-
-        <TouchableOpacity
-          style={styles.notFoundButton}
-          onPress={() => router.back()}
-        >
+        <TouchableOpacity style={styles.notFoundButton} onPress={() => router.back()}>
           <Text style={styles.notFoundButtonText}>Geri Dön</Text>
         </TouchableOpacity>
       </View>
     );
   }
-
-  const workoutExercises = workout.exercises
-    .map((workoutExercise) => {
-      const matchedExercise = exerciseData.find(
-        (exercise) => exercise.id === workoutExercise.exerciseId
-      );
-
-      if (!matchedExercise) {
-        return null;
-      }
-
-      return {
-        ...matchedExercise,
-        order: workoutExercise.order,
-      };
-    })
-    .filter(Boolean)
-    .sort((a, b) => {
-      return (a?.order ?? 0) - (b?.order ?? 0);
-    });
 
   const difficultyColor =
     workout.difficulty === 'Kolay'
@@ -73,7 +80,7 @@ export default function WorkoutDetailScreen() {
 
         <View style={styles.content}>
           <ExerciseAnimation
-            animationKey={workout.coverAnimationKey}
+            animationKey={undefined}
             backgroundColor="#F9E8E2"
             height={280}
           />
@@ -124,25 +131,21 @@ export default function WorkoutDetailScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Antrenman İçeriği</Text>
 
-          {workoutExercises.map((exercise) => {
-            if (!exercise) {
-              return null;
-            }
-
+          {workout.exercises.map((item) => {
             return (
               <TouchableOpacity
-                key={`${workout.id}-${exercise.id}-${exercise.order}`}
+                key={`${workout.id}-${item.id}-${item.orderNo}`}
                 style={styles.exerciseRow}
-                onPress={() => router.push(`/(tabs)/exercise/${exercise.id}`)}
+                activeOpacity={0.9}
               >
                 <View style={styles.exerciseOrder}>
-                  <Text style={styles.exerciseOrderText}>{exercise.order}</Text>
+                  <Text style={styles.exerciseOrderText}>{item.orderNo}</Text>
                 </View>
 
                 <View style={styles.exerciseTextArea}>
-                  <Text style={styles.exerciseName}>{exercise.name}</Text>
+                  <Text style={styles.exerciseName}>{item.exercise.name}</Text>
                   <Text style={styles.exerciseMeta}>
-                    {exercise.duration} • {exercise.difficulty}
+                    {(item.durationSec ?? item.exercise.defaultDurationSec ?? 30)} sn • {item.exercise.difficulty}
                   </Text>
                 </View>
 

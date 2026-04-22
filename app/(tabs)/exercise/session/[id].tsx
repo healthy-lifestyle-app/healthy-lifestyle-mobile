@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Modal,
   Alert,
@@ -9,11 +9,22 @@ import {
   View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
 import ExerciseAnimation from '@/components/exercise/ExerciseAnimation';
-import { exerciseData } from '@/data/exerciseData';
-import { workoutData } from '@/data/workoutData';
+import {
+  cancelWorkoutSession,
+  completeWorkoutSession,
+  completeWorkoutSessionExercise,
+  getWorkoutById,
+  pauseWorkoutSession,
+  resumeWorkoutSession,
+  skipWorkoutSessionExercise,
+  startWorkoutSession,
+  type MobileWorkout,
+  type WorkoutSession,
+} from '@/api/activity';
 import Screen from '@/components/Screen';
 
 function formatTime(totalSeconds: number) {
@@ -45,33 +56,9 @@ export default function ExerciseSessionScreen() {
   const router = useRouter();
 
   const workoutId = Array.isArray(id) ? id[0] : id;
-  const workout = workoutData.find((item) => item.id === workoutId);
-
-  const sessionExercises = useMemo(() => {
-    if (!workout) {
-      return [];
-    }
-
-    return workout.exercises
-      .map((workoutExercise) => {
-        const matchedExercise = exerciseData.find(
-          (exercise) => exercise.id === workoutExercise.exerciseId
-        );
-
-        if (!matchedExercise) {
-          return null;
-        }
-
-        return {
-          ...matchedExercise,
-          order: workoutExercise.order,
-        };
-      })
-      .filter(Boolean)
-      .sort((a, b) => {
-        return (a?.order ?? 0) - (b?.order ?? 0);
-      });
-  }, [workout]);
+  const [workout, setWorkout] = useState<MobileWorkout | null>(null);
+  const [session, setSession] = useState<WorkoutSession | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -79,10 +66,36 @@ export default function ExerciseSessionScreen() {
   const [cardY, setCardY] = useState(0);
   const scrollRef = useRef<ScrollView | null>(null);
 
+  const sessionExercises = session?.items ?? [];
   const currentExercise = sessionExercises[currentIndex];
 
   const [secondsLeft, setSecondsLeft] = useState(
-    currentExercise ? parseDurationToSeconds(currentExercise.duration) : 30
+    currentExercise ? (currentExercise.workoutExercise.durationSec ?? 30) : 30
+  );
+
+  const initializeSession = useCallback(async () => {
+    if (!workoutId) return;
+    try {
+      setLoading(true);
+      const [workoutData, startedSession] = await Promise.all([
+        getWorkoutById(workoutId),
+        startWorkoutSession(workoutId),
+      ]);
+      setWorkout(workoutData);
+      setSession(startedSession);
+      setCurrentIndex(0);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Antrenman başlatılamadı.';
+      Alert.alert('Hata', message, [{ text: 'Tamam', onPress: () => router.back() }]);
+    } finally {
+      setLoading(false);
+    }
+  }, [router, workoutId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      initializeSession();
+    }, [initializeSession]),
   );
 
   useEffect(() => {
@@ -90,7 +103,7 @@ export default function ExerciseSessionScreen() {
       return;
     }
 
-    setSecondsLeft(parseDurationToSeconds(currentExercise.duration));
+    setSecondsLeft(currentExercise.workoutExercise.durationSec ?? 30);
     setIsPaused(false);
   }, [currentIndex, currentExercise]);
 
@@ -112,6 +125,8 @@ export default function ExerciseSessionScreen() {
   }, [secondsLeft, isPaused, isCompleted, currentExercise]);
 
   const handleSkipExercise = () => {
+    if (!session || !currentExercise) return;
+    skipWorkoutSessionExercise(session.id, currentExercise.id).catch(() => {});
     if (currentIndex === sessionExercises.length - 1) {
       setIsCompleted(true);
       return;
@@ -121,6 +136,8 @@ export default function ExerciseSessionScreen() {
   };
 
   const handleCompleteExercise = () => {
+    if (!session || !currentExercise) return;
+    completeWorkoutSessionExercise(session.id, currentExercise.id).catch(() => {});
     if (currentIndex === sessionExercises.length - 1) {
       setIsCompleted(true);
       return;
@@ -141,15 +158,40 @@ export default function ExerciseSessionScreen() {
       {
         text: 'Durdur',
         style: 'destructive',
-        onPress: () => router.replace('/(tabs)/exercise'),
+        onPress: async () => {
+          if (session) {
+            await cancelWorkoutSession(session.id).catch(() => {});
+          }
+          router.replace('/(tabs)/exercise');
+        },
       },
     ]);
   };
 
   const handleFinishSession = () => {
     setIsPaused(true);
+    if (session) {
+      completeWorkoutSession(session.id).catch(() => {});
+    }
     setIsCompleted(true);
   };
+
+  useEffect(() => {
+    if (!session) return;
+    if (isPaused) {
+      pauseWorkoutSession(session.id).catch(() => {});
+    } else {
+      resumeWorkoutSession(session.id).catch(() => {});
+    }
+  }, [isPaused, session]);
+
+  if (loading) {
+    return (
+      <Screen backgroundColor="#FCFBFF" contentStyle={styles.notFoundContainer} edges={['top']}>
+        <Text style={styles.notFoundText}>Antrenman hazırlanıyor...</Text>
+      </Screen>
+    );
+  }
 
   if (!workout) {
     return (
@@ -216,10 +258,12 @@ export default function ExerciseSessionScreen() {
             Egzersiz {currentIndex + 1}/{sessionExercises.length}
           </Text>
 
-          <Text style={styles.currentExerciseTitle}>{currentExercise.name}</Text>
+          <Text style={styles.currentExerciseTitle}>
+            {currentExercise.workoutExercise.exercise.name ?? 'Egzersiz'}
+          </Text>
 
           <ExerciseAnimation
-            animationKey={currentExercise.animationKey}
+            animationKey={undefined}
             backgroundColor="#F9E8E2"
             height={180}
           />
