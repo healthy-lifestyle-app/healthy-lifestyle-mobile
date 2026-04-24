@@ -52,14 +52,15 @@ export default function TabLayout() {
         />
 
         <Tabs.Screen
-          name="recipes/index"
-          options={{
-            title: 'Tarifler',
-            tabBarIcon: ({ color }) => (
-              <IconSymbol size={28} name="book.fill" color={color} />
-            ),
-          }}
-        />
+  name="recipes"
+  options={{
+    title: 'Tarifler',
+    tabBarLabel: 'Tarifler',
+    tabBarIcon: ({ color }) => (
+      <IconSymbol size={28} name="fork.knife" color={color} />
+    ),
+  }}
+/>
 
         <Tabs.Screen
           name="profile/index"
@@ -70,6 +71,18 @@ export default function TabLayout() {
             ),
           }}
         />
+
+        <Tabs.Screen name="home/detail" options={{ href: null }} />
+        <Tabs.Screen name="nutrition/add-meal" options={{ href: null }} />
+        <Tabs.Screen name="nutrition/scan" options={{ href: null }} />
+        <Tabs.Screen name="exercise/[id]" options={{ href: null }} />
+        <Tabs.Screen name="exercise/workout/[id]" options={{ href: null }} />
+        <Tabs.Screen name="exercise/session/[id]" options={{ href: null }} />
+        <Tabs.Screen name="exercise/session-exercise/[id]" options={{ href: null }} />
+        <Tabs.Screen name="recipes/add" options={{ href: null }} />
+        <Tabs.Screen name="recipes/[id]" options={{ href: null }} />
+        <Tabs.Screen name="recipes/my-recipes" options={{ href: null }} />
+        <Tabs.Screen name="onboarding" options={{ href: null }} />
       </Tabs>
 
       <Pressable
