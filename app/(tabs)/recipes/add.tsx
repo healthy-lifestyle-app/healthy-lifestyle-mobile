@@ -11,7 +11,10 @@ import {
 import { router } from 'expo-router';
 import { ArrowLeft, Plus } from 'lucide-react-native';
 import Screen from '@/components/Screen';
-import { createRecipe, type RecipeCategory } from '@/lib/recipesStore';
+import {
+  createRecipe,
+  mapCategoryToBackend,
+} from '@/lib/recipesApi';
 
 const COLORS = {
   background: '#F8F6EC',
@@ -27,30 +30,35 @@ const COLORS = {
   yellowSoft: '#FFF4DA',
   border: '#E6E2F0',
   white: '#FFFFFF',
+  orange: '#FF6B1A',
 };
 
-const CATEGORIES: RecipeCategory[] = ['Kahvaltı', 'Öğle', 'Akşam', 'Atıştırma'];
+type DisplayCategory = 'Kahvaltı' | 'Öğle' | 'Akşam' | 'Atıştırma';
+const CATEGORIES: DisplayCategory[] = ['Kahvaltı', 'Öğle', 'Akşam', 'Atıştırma'];
 
 export default function AddRecipeScreen() {
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState<RecipeCategory>('Kahvaltı');
+  const [category, setCategory] = useState<DisplayCategory>('Kahvaltı');
   const [durationMin, setDurationMin] = useState('30');
   const [servings, setServings] = useState('2');
   const [calories, setCalories] = useState('450');
-  const [ingredients, setIngredients] = useState<string[]>(['']);
+  const [description, setDescription] = useState('');
+  const [ingredients, setIngredients] = useState<
+    Array<{ name: string; amountText: string }>
+  >([{ name: '', amountText: '' }]);
   const [steps, setSteps] = useState<string[]>(['']);
   const [tags, setTags] = useState('Protein, Lif');
+  const [tip, setTip] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const updateList = (
-    list: string[],
-    setList: (value: string[]) => void,
+  const updateIngredient = (
     index: number,
+    field: 'name' | 'amountText',
     value: string,
   ) => {
-    const next = [...list];
-    next[index] = value;
-    setList(next);
+    const next = [...ingredients];
+    next[index] = { ...next[index], [field]: value };
+    setIngredients(next);
   };
 
   const handleSave = async () => {
@@ -60,8 +68,11 @@ export default function AddRecipeScreen() {
       return;
     }
 
-    const cleanIngredients = ingredients.map((item) => item.trim()).filter(Boolean);
-    const cleanSteps = steps.map((item) => item.trim()).filter(Boolean);
+    const cleanIngredients = ingredients.filter((i: { name: string; }) => i.name.trim());
+    const cleanSteps = steps
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((step) => ({ text: step }));
 
     if (cleanIngredients.length === 0 || cleanSteps.length === 0) {
       Alert.alert('Uyarı', 'En az 1 malzeme ve 1 adım gir.');
@@ -72,12 +83,20 @@ export default function AddRecipeScreen() {
       setSaving(true);
       const created = await createRecipe({
         title: cleanTitle,
-        category,
-        durationMin: Math.max(1, Number(durationMin) || 1),
+        description: description.trim() || undefined,
+        category: mapCategoryToBackend(category),
+        prepTimeMin: Math.max(1, Number(durationMin) || 1),
         servings: Math.max(1, Number(servings) || 1),
-        calories: Math.max(0, Number(calories) || 0),
-        tags: tags.split(',').map((item) => item.trim()).filter(Boolean),
-        ingredients: cleanIngredients,
+        caloriesKcal: Math.max(0, Number(calories) || 0),
+        tags: tags
+          .split(',')
+          .map((t) => t.trim())
+          .filter(Boolean),
+        tip: tip.trim() || undefined,
+        ingredients: cleanIngredients.map((i: { name: string; amountText: string; }) => ({
+          name: i.name.trim(),
+          amountText: i.amountText.trim(),
+        })),
         steps: cleanSteps,
       });
 
@@ -86,7 +105,9 @@ export default function AddRecipeScreen() {
         params: { id: created.id },
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Tarif kaydedilemedi.';
+      console.log('CREATE_RECIPE_ERROR', error);
+      const message =
+        error instanceof Error ? error.message : 'Tarif kaydedilemedi.';
       Alert.alert('Hata', message);
     } finally {
       setSaving(false);
@@ -95,7 +116,9 @@ export default function AddRecipeScreen() {
 
   return (
     <Screen backgroundColor={COLORS.background} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}>
         <View style={styles.headerRow}>
           <Pressable style={styles.backButton} onPress={() => router.back()}>
             <ArrowLeft size={22} color={COLORS.primary} strokeWidth={2.4} />
@@ -114,6 +137,13 @@ export default function AddRecipeScreen() {
             placeholder="Örn: Protein Kahvaltı Kasesi"
             style={styles.input}
           />
+          <TextInput
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Kısa açıklama (opsiyonel)"
+            style={[styles.input, styles.multiline]}
+            multiline
+          />
 
           <View style={styles.categoryGrid}>
             {CATEGORIES.map((item) => {
@@ -122,52 +152,103 @@ export default function AddRecipeScreen() {
                 <Pressable
                   key={item}
                   onPress={() => setCategory(item)}
-                  style={[styles.categoryItem, active && styles.categoryItemActive]}>
-                  <Text style={[styles.categoryText, active && styles.categoryTextActive]}>{item}</Text>
+                  style={[
+                    styles.categoryItem,
+                    active && styles.categoryItemActive,
+                  ]}>
+                  <Text
+                    style={[
+                      styles.categoryText,
+                      active && styles.categoryTextActive,
+                    ]}>
+                    {item}
+                  </Text>
                 </Pressable>
               );
             })}
           </View>
 
           <View style={styles.row}>
-            <TextInput value={durationMin} onChangeText={setDurationMin} keyboardType="number-pad" style={[styles.input, styles.smallInput]} placeholder="Süre (dk)" />
-            <TextInput value={servings} onChangeText={setServings} keyboardType="number-pad" style={[styles.input, styles.smallInput]} placeholder="Porsiyon" />
-            <TextInput value={calories} onChangeText={setCalories} keyboardType="number-pad" style={[styles.input, styles.smallInput]} placeholder="Kalori" />
+            <TextInput
+              value={durationMin}
+              onChangeText={setDurationMin}
+              keyboardType="number-pad"
+              style={[styles.input, styles.smallInput]}
+              placeholder="Süre (dk)"
+            />
+            <TextInput
+              value={servings}
+              onChangeText={setServings}
+              keyboardType="number-pad"
+              style={[styles.input, styles.smallInput]}
+              placeholder="Porsiyon"
+            />
+            <TextInput
+              value={calories}
+              onChangeText={setCalories}
+              keyboardType="number-pad"
+              style={[styles.input, styles.smallInput]}
+              placeholder="Kalori"
+            />
           </View>
         </View>
 
         <View style={[styles.card, styles.cardGreen]}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Malzemeler</Text>
-            <Pressable style={styles.addBtn} onPress={() => setIngredients((prev) => [...prev, ''])}>
+            <Pressable
+              style={styles.addBtn}
+              onPress={() =>
+                setIngredients((prev: any) => [
+                  ...prev,
+                  { name: '', amountText: '' },
+                ])
+              }>
               <Plus size={16} color={COLORS.white} />
               <Text style={styles.addBtnText}>Ekle</Text>
             </Pressable>
           </View>
-          {ingredients.map((ingredient, idx) => (
-            <TextInput
-              key={`ingredient-${idx}`}
-              value={ingredient}
-              onChangeText={(value) => updateList(ingredients, setIngredients, idx, value)}
-              placeholder={`Malzeme ${idx + 1}`}
-              style={styles.input}
-            />
+          {ingredients.map((ingredient: { name: string | undefined; amountText: string | undefined; }, idx: number) => (
+            <View key={`ingredient-${idx}`} style={styles.ingredientRow}>
+              <TextInput
+                value={ingredient.name}
+                onChangeText={(val) => updateIngredient(idx, 'name', val)}
+                placeholder={`Malzeme ${idx + 1}`}
+                style={[styles.input, { flex: 2 }]}
+              />
+              <TextInput
+                value={ingredient.amountText}
+                onChangeText={(val) =>
+                  updateIngredient(idx, 'amountText', val)
+                }
+                placeholder="Miktar"
+                style={[styles.input, { flex: 1 }]}
+              />
+            </View>
           ))}
         </View>
 
         <View style={[styles.card, styles.cardYellow]}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Hazırlanışı</Text>
-            <Pressable style={[styles.addBtn, { backgroundColor: COLORS.yellow }]} onPress={() => setSteps((prev) => [...prev, ''])}>
+            <Pressable
+              style={[styles.addBtn, { backgroundColor: COLORS.yellow }]}
+              onPress={() => setSteps((prev) => [...prev, ''])}>
               <Plus size={16} color={COLORS.primary} />
-              <Text style={[styles.addBtnText, { color: COLORS.primary }]}>Ekle</Text>
+              <Text style={[styles.addBtnText, { color: COLORS.primary }]}>
+                Ekle
+              </Text>
             </Pressable>
           </View>
           {steps.map((step, idx) => (
             <TextInput
               key={`step-${idx}`}
               value={step}
-              onChangeText={(value) => updateList(steps, setSteps, idx, value)}
+              onChangeText={(value) => {
+                const next = [...steps];
+                next[idx] = value;
+                setSteps(next);
+              }}
               placeholder={`Adım ${idx + 1}`}
               style={[styles.input, styles.multiline]}
               multiline
@@ -183,14 +264,29 @@ export default function AddRecipeScreen() {
             placeholder="Protein, Vegan, Omega-3"
             style={styles.input}
           />
+          <TextInput
+            value={tip}
+            onChangeText={setTip}
+            placeholder="İpucu (opsiyonel)"
+            style={[styles.input, styles.multiline]}
+            multiline
+          />
         </View>
 
         <View style={styles.footerActions}>
-          <Pressable style={[styles.footerBtn, styles.cancelBtn]} onPress={() => router.back()}>
-            <Text style={[styles.footerBtnText, { color: COLORS.primary }]}>İptal</Text>
+          <Pressable
+            style={[styles.footerBtn, styles.cancelBtn]}
+            onPress={() => router.back()}>
+            <Text style={[styles.footerBtnText, { color: COLORS.primary }]}>
+              İptal
+            </Text>
           </Pressable>
           <Pressable
-            style={[styles.footerBtn, styles.saveBtn, saving && { opacity: 0.7 }]}
+            style={[
+              styles.footerBtn,
+              styles.saveBtn,
+              saving && { opacity: 0.7 },
+            ]}
             onPress={handleSave}
             disabled={saving}>
             <Text style={[styles.footerBtnText, { color: COLORS.white }]}>
@@ -216,25 +312,26 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   backButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 15,
     backgroundColor: '#EDEAF7',
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '900',
     color: COLORS.primary,
   },
   headerSub: {
-    fontSize: 15,
+    fontSize: 13,
     color: '#4E535F',
+    fontWeight: '500',
   },
   card: {
     backgroundColor: COLORS.white,
-    borderRadius: 22,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: COLORS.border,
     padding: 14,
@@ -262,7 +359,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 17,
     fontWeight: '800',
     color: COLORS.primary,
   },
@@ -272,11 +369,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.8)',
     borderRadius: 14,
     paddingHorizontal: 12,
-    height: 46,
-    fontSize: 16,
+    height: 44,
+    fontSize: 14,
     color: COLORS.text,
   },
   row: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  ingredientRow: {
     flexDirection: 'row',
     gap: 8,
   },
@@ -291,7 +392,7 @@ const styles = StyleSheet.create({
   categoryItem: {
     flexGrow: 1,
     minWidth: '47%',
-    height: 44,
+    height: 42,
     borderRadius: 14,
     backgroundColor: 'rgba(255,255,255,0.7)',
     alignItems: 'center',
@@ -301,7 +402,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
   },
   categoryText: {
-    fontSize: 19,
+    fontSize: 14,
     fontWeight: '700',
     color: '#5B6070',
   },
@@ -313,18 +414,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     backgroundColor: COLORS.green,
-    borderRadius: 18,
-    height: 36,
+    borderRadius: 16,
+    height: 34,
     paddingHorizontal: 12,
   },
   addBtnText: {
     color: COLORS.white,
     fontWeight: '800',
-    fontSize: 15,
+    fontSize: 13,
   },
   multiline: {
-    minHeight: 90,
-    height: 90,
+    minHeight: 76,
+    height: 76,
     textAlignVertical: 'top',
     paddingTop: 10,
   },
@@ -335,8 +436,8 @@ const styles = StyleSheet.create({
   },
   footerBtn: {
     flex: 1,
-    height: 48,
-    borderRadius: 18,
+    height: 46,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -347,7 +448,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.green,
   },
   footerBtnText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '800',
   },
 });

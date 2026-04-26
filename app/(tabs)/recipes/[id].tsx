@@ -1,10 +1,25 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { Image } from 'expo-image';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { ArrowLeft, ChefHat, Clock3, Heart, Lightbulb, Users } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  ChefHat,
+  Clock3,
+  Heart,
+  Lightbulb,
+  Users,
+} from 'lucide-react-native';
+
 import Screen from '@/components/Screen';
-import { getRecipeById, type Recipe } from '@/lib/recipesStore';
+import { getRecipeById, type Recipe } from '@/lib/recipesApi';
 
 const COLORS = {
   background: '#F8F6EC',
@@ -15,25 +30,103 @@ const COLORS = {
   greenSoft: '#EEF5DE',
   blue: '#5A97F0',
   blueSoft: '#EAF3FF',
-  yellow: '#F2CF7B',
   border: '#E6E2F0',
   white: '#FFFFFF',
-  yellowSoft: '#FFF4DA',
   purpleSoft: '#F0EDFA',
 };
 
+type RecipeIngredient = {
+  id?: string;
+  foodId?: string | null;
+  name?: string | null;
+  amountText?: string | null;
+  orderNo?: number;
+};
+
+type RecipeStep = {
+  id?: string;
+  orderNo?: number;
+  text?: string | null;
+};
+
+function getCategoryLabel(category?: string | null) {
+  switch (category) {
+    case 'BREAKFAST':
+      return 'Kahvaltı';
+    case 'LUNCH':
+      return 'Öğle';
+    case 'DINNER':
+      return 'Akşam';
+    case 'SNACK':
+      return 'Atıştırmalık';
+    default:
+      return 'Diğer';
+  }
+}
+
+function getIngredientLabel(ingredient: RecipeIngredient | string) {
+  if (typeof ingredient === 'string') {
+    return ingredient;
+  }
+
+  const name = ingredient.name ?? 'Malzeme';
+  const amount = ingredient.amountText ?? '';
+
+  return amount ? `${name} - ${amount}` : name;
+}
+
+function getStepLabel(step: RecipeStep | string) {
+  if (typeof step === 'string') {
+    return step;
+  }
+
+  return step.text ?? 'Adım bilgisi bulunamadı.';
+}
+
 export default function RecipeDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id } = useLocalSearchParams<{ id?: string }>();
+
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useFocusEffect(
     useCallback(() => {
-      if (!id) return;
-      setLoading(true);
-      getRecipeById(String(id))
-        .then(setRecipe)
-        .finally(() => setLoading(false));
+      if (!id) {
+        setLoading(false);
+        setError('Tarif bilgisi bulunamadı.');
+        return;
+      }
+
+      let isActive = true;
+
+      async function fetchRecipe() {
+        try {
+          setLoading(true);
+          setError('');
+
+          const data = await getRecipeById(String(id));
+
+          if (isActive) {
+            setRecipe(data);
+          }
+        } catch (err: any) {
+          console.log('GET_RECIPE_DETAIL_ERROR', err?.response?.data ?? err);
+          if (isActive) {
+            setError('Tarif detayı yüklenemedi.');
+          }
+        } finally {
+          if (isActive) {
+            setLoading(false);
+          }
+        }
+      }
+
+      fetchRecipe();
+
+      return () => {
+        isActive = false;
+      };
     }, [id]),
   );
 
@@ -42,23 +135,31 @@ export default function RecipeDetailScreen() {
       <Screen backgroundColor={COLORS.background} edges={['top']}>
         <View style={styles.center}>
           <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.loadingText}>Tarif yükleniyor...</Text>
         </View>
       </Screen>
     );
   }
 
-  if (!recipe) {
+  if (error || !recipe) {
     return (
       <Screen backgroundColor={COLORS.background} edges={['top']}>
         <View style={styles.center}>
-          <Text style={styles.notFound}>Tarif bulunamadı.</Text>
-          <Pressable style={styles.backMainBtn} onPress={() => router.replace('/recipes')}>
+          <Text style={styles.notFound}>{error || 'Tarif bulunamadı.'}</Text>
+          <Pressable
+            style={styles.backMainBtn}
+            onPress={() => router.replace('/recipes')}>
             <Text style={styles.backMainBtnText}>Tariflere Dön</Text>
           </Pressable>
         </View>
       </Screen>
     );
   }
+
+  const ingredients = (recipe.ingredients ?? []) as Array<
+    RecipeIngredient | string
+  >;
+  const steps = (recipe.steps ?? []) as Array<RecipeStep | string>;
 
   return (
     <Screen backgroundColor={COLORS.background} edges={['top']}>
@@ -73,83 +174,137 @@ export default function RecipeDetailScreen() {
             style={styles.heroImage}
             contentFit="cover"
           />
+
           <View style={styles.heroOverlay} />
+
           <View style={styles.heroActions}>
             <Pressable style={styles.heroBtn} onPress={() => router.back()}>
               <ArrowLeft size={20} color={COLORS.primary} strokeWidth={2.4} />
             </Pressable>
+
             <Pressable style={styles.heroBtn}>
               <Heart size={20} color="#FF6B1A" strokeWidth={2.2} />
             </Pressable>
           </View>
+
           <View style={styles.heroBottom}>
             <Text style={styles.heroTitle}>{recipe.title}</Text>
+
             <View style={styles.heroMeta}>
               <View style={styles.heroMetaItem}>
                 <Clock3 size={16} color="#FFFFFF" />
-                <Text style={styles.heroMetaText}>{recipe.durationMin} dk</Text>
+                <Text style={styles.heroMetaText}>
+                  {recipe.prepTimeMin ?? 0} dk
+                </Text>
               </View>
+
               <View style={styles.heroMetaItem}>
                 <Users size={16} color="#FFFFFF" />
-                <Text style={styles.heroMetaText}>{recipe.servings} kişi</Text>
+                <Text style={styles.heroMetaText}>
+                  {recipe.servings ?? 1} kişi
+                </Text>
               </View>
-              <Text style={styles.heroMetaText}>{recipe.calories} kcal</Text>
+
+              <Text style={styles.heroMetaText}>
+                {recipe.caloriesKcal ?? 0} kcal
+              </Text>
             </View>
           </View>
         </View>
 
         <View style={styles.content}>
-          <View style={styles.tagRow}>
-            {recipe.tags.map((tag) => (
-              <View key={tag} style={styles.tag}>
-                <Text style={styles.tagText}>{tag}</Text>
-              </View>
-            ))}
-          </View>
+          {recipe.description ? (
+            <Text style={styles.description}>{recipe.description}</Text>
+          ) : null}
+
+          {(recipe.tags ?? []).length > 0 ? (
+            <View style={styles.tagRow}>
+              {(recipe.tags ?? []).map((tag) => (
+                <View key={tag} style={styles.tag}>
+                  <Text style={styles.tagText}>{tag}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
 
           <View style={styles.categoryCard}>
             <View style={styles.categoryIcon}>
               <ChefHat size={22} color={COLORS.white} />
             </View>
+
             <View>
-              <Text style={styles.categoryTitle}>{recipe.category}</Text>
+              <Text style={styles.categoryTitle}>
+                {getCategoryLabel(recipe.category)}
+              </Text>
               <Text style={styles.categorySub}>Öğün kategorisi</Text>
             </View>
           </View>
 
           <View style={styles.block}>
             <Text style={styles.blockTitle}>Malzemeler</Text>
-            {recipe.ingredients.map((ingredient, index) => (
-              <View key={`${ingredient}-${index}`} style={styles.row}>
-                <View style={styles.numPill}>
-                  <Text style={styles.numPillText}>{index + 1}</Text>
+
+            {ingredients.length === 0 ? (
+              <Text style={styles.rowText}>Malzeme bilgisi bulunamadı.</Text>
+            ) : (
+              ingredients.map((ingredient, index) => (
+                <View
+                  key={
+                    typeof ingredient === 'string'
+                      ? `${recipe.id}-ingredient-${index}`
+                      : ingredient.id ?? `${recipe.id}-ingredient-${index}`
+                  }
+                  style={styles.row}>
+                  <View style={styles.numPill}>
+                    <Text style={styles.numPillText}>{index + 1}</Text>
+                  </View>
+
+                  <Text style={styles.rowText}>
+                    {getIngredientLabel(ingredient)}
+                  </Text>
                 </View>
-                <Text style={styles.rowText}>{ingredient}</Text>
-              </View>
-            ))}
+              ))
+            )}
           </View>
 
           <View style={styles.block}>
             <Text style={styles.blockTitle}>Hazırlanışı</Text>
-            {recipe.steps.map((step, index) => (
-              <View key={`${step}-${index}`} style={styles.stepCard}>
-                <View style={styles.numPill}>
-                  <Text style={styles.numPillText}>{index + 1}</Text>
+
+            {steps.length === 0 ? (
+              <Text style={styles.rowText}>Hazırlanış adımı bulunamadı.</Text>
+            ) : (
+              steps.map((step, index) => (
+                <View
+                  key={
+                    typeof step === 'string'
+                      ? `${recipe.id}-step-${index}`
+                      : step.id ?? `${recipe.id}-step-${index}`
+                  }
+                  style={styles.stepCard}>
+                  <View style={styles.numPill}>
+                    <Text style={styles.numPillText}>{index + 1}</Text>
+                  </View>
+
+                  <Text style={styles.stepText}>{getStepLabel(step)}</Text>
                 </View>
-                <Text style={styles.stepText}>{step}</Text>
-              </View>
-            ))}
+              ))
+            )}
           </View>
 
           <View style={styles.nutritionCard}>
             <Text style={styles.blockTitle}>Besin Değerleri</Text>
+
             <View style={styles.nutritionGrid}>
               <View style={styles.nutritionItem}>
-                <Text style={styles.nutritionValue}>{recipe.calories}</Text>
+                <Text style={styles.nutritionValue}>
+                  {recipe.caloriesKcal ?? 0}
+                </Text>
                 <Text style={styles.nutritionLabel}>Kalori</Text>
               </View>
+
               <View style={styles.nutritionItem}>
-                <Text style={styles.nutritionValue}>{recipe.servings}</Text>
+                <Text style={styles.nutritionValue}>
+                  {recipe.servings ?? 1}
+                </Text>
                 <Text style={styles.nutritionLabel}>Porsiyon</Text>
               </View>
             </View>
@@ -158,6 +313,7 @@ export default function RecipeDetailScreen() {
           {recipe.tip ? (
             <View style={styles.tipCard}>
               <Lightbulb size={18} color="#E8BA4E" />
+
               <View style={{ flex: 1 }}>
                 <Text style={styles.tipTitle}>İpucu</Text>
                 <Text style={styles.tipText}>{recipe.tip}</Text>
@@ -180,11 +336,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
+    padding: 20,
+  },
+  loadingText: {
+    fontSize: 15,
+    color: COLORS.muted,
+    fontWeight: '700',
   },
   notFound: {
     fontSize: 18,
     color: COLORS.primary,
     fontWeight: '700',
+    textAlign: 'center',
   },
   backMainBtn: {
     height: 44,
@@ -243,6 +406,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    flexWrap: 'wrap',
   },
   heroMetaItem: {
     flexDirection: 'row',
@@ -257,6 +421,12 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     gap: 14,
+  },
+  description: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: '#273045',
+    fontWeight: '600',
   },
   tagRow: {
     flexDirection: 'row',
@@ -293,7 +463,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.green,
   },
   categoryTitle: {
-    fontSize: 36,
+    fontSize: 24,
     fontWeight: '900',
     color: COLORS.text,
   },
@@ -310,7 +480,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   blockTitle: {
-    fontSize: 37,
+    fontSize: 24,
     fontWeight: '900',
     color: COLORS.primary,
     marginBottom: 4,
