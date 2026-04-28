@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
+  Image,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { router } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 const COLORS = {
@@ -35,12 +39,84 @@ const MOCK_RESULT = {
 };
 
 export default function ScanScreen() {
-  const [selectedSource, setSelectedSource] = useState<'gallery' | 'camera' | null>(null);
+  const [selectedSource, setSelectedSource] = useState<
+    'gallery' | 'camera' | null
+  >(null);
+  const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showResult, setShowResult] = useState(false);
 
-  const handleMockAnalyze = (source: 'gallery' | 'camera') => {
-    setSelectedSource(source);
+  async function openGallery() {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (!permission.granted) {
+      Alert.alert(
+        'Galeri izni gerekli',
+        'Fotoğraf seçebilmek için galeri izni vermelisin.',
+      );
+      return;
+    }
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (result.canceled) {
+        return;
+      }
+
+      setSelectedSource('gallery');
+      setSelectedImageUri(result.assets[0].uri);
+      setShowResult(false);
+    } catch {
+      Alert.alert('Hata', 'Galeri açılırken bir sorun oluştu.');
+    }
+  }
+
+  async function openCamera() {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+
+    if (!permission.granted) {
+      Alert.alert(
+        'Kamera izni gerekli',
+        'Fotoğraf çekebilmek için kamera izni vermelisin.',
+      );
+      return;
+    }
+
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (result.canceled) {
+        return;
+      }
+
+      setSelectedSource('camera');
+      setSelectedImageUri(result.assets[0].uri);
+      setShowResult(false);
+    } catch {
+      Alert.alert('Hata', 'Kamera açılırken bir sorun oluştu.');
+    }
+  }
+
+  function handleMockAnalyze() {
+    if (!selectedImageUri) {
+      Alert.alert(
+        'Fotoğraf seçilmedi',
+        'Analiz için önce fotoğraf çekmeli veya galeriden seçmelisin.',
+      );
+      return;
+    }
+
     setIsAnalyzing(true);
     setShowResult(false);
 
@@ -48,24 +124,29 @@ export default function ScanScreen() {
       setIsAnalyzing(false);
       setShowResult(true);
     }, 1500);
-  };
+  }
 
-  const resetFlow = () => {
+  function resetFlow() {
     setSelectedSource(null);
+    setSelectedImageUri(null);
     setIsAnalyzing(false);
     setShowResult(false);
-  };
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
             activeOpacity={0.85}
             onPress={() => router.back()}
           >
-            <Ionicons name='chevron-back' size={20} color={COLORS.text} />
+            <Ionicons name="chevron-back" size={20} color={COLORS.text} />
           </TouchableOpacity>
 
           <View>
@@ -75,45 +156,94 @@ export default function ScanScreen() {
         </View>
 
         <View style={styles.cameraCard}>
-          <View style={styles.cameraIconWrap}>
-            <MaterialCommunityIcons
-              name='image-search-outline'
-              size={44}
-              color={COLORS.primary}
+          {selectedImageUri ? (
+            <Image
+              source={{ uri: selectedImageUri }}
+              style={styles.selectedImage}
             />
-          </View>
+          ) : (
+            <>
+              <View style={styles.cameraIconWrap}>
+                <MaterialCommunityIcons
+                  name="image-search-outline"
+                  size={44}
+                  color={COLORS.primary}
+                />
+              </View>
 
-          <Text style={styles.cameraTitle}>Fotoğrafını yükle veya çek</Text>
-          <Text style={styles.cameraText}>
-            Yapay zeka yemeğini analiz edip tahmini kalori ve içerik bilgisi oluştursun.
-          </Text>
+              <Text style={styles.cameraTitle}>Fotoğrafını yükle veya çek</Text>
+              <Text style={styles.cameraText}>
+                Yapay zeka yemeğini analiz edip tahmini kalori ve içerik bilgisi
+                oluştursun.
+              </Text>
+            </>
+          )}
+
+          {selectedImageUri ? (
+            <View style={styles.selectedInfoBox}>
+              <Ionicons
+                name={
+                  selectedSource === 'gallery'
+                    ? 'images-outline'
+                    : 'camera-outline'
+                }
+                size={18}
+                color={COLORS.primary}
+              />
+              <Text style={styles.selectedInfoText}>
+                {selectedSource === 'gallery'
+                  ? 'Galeriden fotoğraf seçildi'
+                  : 'Kameradan fotoğraf çekildi'}
+              </Text>
+            </View>
+          ) : null}
 
           <View style={styles.actionRow}>
             <TouchableOpacity
               style={styles.galleryButton}
               activeOpacity={0.85}
-              onPress={() => handleMockAnalyze('gallery')}
+              onPress={openGallery}
               disabled={isAnalyzing}
             >
-              <Ionicons name='images-outline' size={18} color={COLORS.primary} />
+              <Ionicons
+                name="images-outline"
+                size={18}
+                color={COLORS.primary}
+              />
               <Text style={styles.galleryButtonText}>Galeriden Seç</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.cameraButton}
               activeOpacity={0.85}
-              onPress={() => handleMockAnalyze('camera')}
+              onPress={openCamera}
               disabled={isAnalyzing}
             >
-              <Ionicons name='camera-outline' size={18} color={COLORS.orange} />
+              <Ionicons
+                name="camera-outline"
+                size={18}
+                color={COLORS.orange}
+              />
               <Text style={styles.cameraButtonText}>Foto Çek</Text>
             </TouchableOpacity>
           </View>
+
+          {selectedImageUri ? (
+            <TouchableOpacity
+              style={styles.analyzeButton}
+              activeOpacity={0.85}
+              onPress={handleMockAnalyze}
+              disabled={isAnalyzing}
+            >
+              <Ionicons name="sparkles-outline" size={18} color={COLORS.white} />
+              <Text style={styles.analyzeButtonText}>Analiz Et</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         {isAnalyzing && (
           <View style={styles.loadingCard}>
-            <ActivityIndicator size='large' color={COLORS.primary} />
+            <ActivityIndicator size="large" color={COLORS.primary} />
             <Text style={styles.loadingTitle}>Analiz ediliyor...</Text>
             <Text style={styles.loadingText}>
               {selectedSource === 'gallery'
@@ -133,14 +263,22 @@ export default function ScanScreen() {
                 activeOpacity={0.85}
                 onPress={resetFlow}
               >
-                <Ionicons name='refresh-outline' size={16} color={COLORS.primary} />
+                <Ionicons
+                  name="refresh-outline"
+                  size={16}
+                  color={COLORS.primary}
+                />
                 <Text style={styles.retryButtonText}>Yeniden Dene</Text>
               </TouchableOpacity>
             </View>
 
             <View style={styles.foodPreview}>
               <View style={styles.foodPreviewImage}>
-                <Ionicons name='restaurant-outline' size={28} color={COLORS.primary} />
+                <Ionicons
+                  name="restaurant-outline"
+                  size={28}
+                  color={COLORS.primary}
+                />
               </View>
 
               <View style={styles.foodPreviewInfo}>
@@ -157,7 +295,9 @@ export default function ScanScreen() {
             </View>
 
             <View style={styles.macrosRow}>
-              <View style={[styles.macroPill, { backgroundColor: COLORS.greenSoft }]}>
+              <View
+                style={[styles.macroPill, { backgroundColor: COLORS.greenSoft }]}
+              >
                 <Text style={[styles.macroValue, { color: COLORS.green }]}>
                   {MOCK_RESULT.protein}g
                 </Text>
@@ -171,7 +311,12 @@ export default function ScanScreen() {
                 <Text style={styles.macroLabel}>Karbonhidrat</Text>
               </View>
 
-              <View style={[styles.macroPill, { backgroundColor: COLORS.primarySoft }]}>
+              <View
+                style={[
+                  styles.macroPill,
+                  { backgroundColor: COLORS.primarySoft },
+                ]}
+              >
                 <Text style={[styles.macroValue, { color: COLORS.primary }]}>
                   {MOCK_RESULT.fat}g
                 </Text>
@@ -192,12 +337,12 @@ export default function ScanScreen() {
               activeOpacity={0.85}
               onPress={() => router.push('/nutrition/add-meal')}
             >
-              <Ionicons name='add' size={18} color={COLORS.white} />
+              <Ionicons name="add" size={18} color={COLORS.white} />
               <Text style={styles.addMealButtonText}>Öğüne Ekle</Text>
             </TouchableOpacity>
           </View>
         )}
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -207,8 +352,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  container: {
+  scroll: {
     flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  container: {
     backgroundColor: COLORS.background,
     paddingHorizontal: 20,
     paddingTop: 10,
@@ -257,6 +405,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
+  },
+  selectedImage: {
+    width: '100%',
+    height: 260,
+    borderRadius: 22,
+    marginBottom: 14,
+    backgroundColor: '#E8E3F6',
+  },
+  selectedInfoBox: {
+    width: '100%',
+    borderRadius: 18,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  selectedInfoText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.primary,
   },
   cameraTitle: {
     fontSize: 20,
@@ -312,6 +485,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: COLORS.orange,
+  },
+  analyzeButton: {
+    width: '100%',
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: COLORS.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 14,
+  },
+  analyzeButtonText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: COLORS.white,
   },
 
   loadingCard: {
