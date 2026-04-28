@@ -1,6 +1,11 @@
 import { getAccessToken } from '@/lib/storage';
 
-const API_BASE_URL = 'http://172.16.50.202:3000/api';
+
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
+
+if (!API_BASE_URL) {
+  throw new Error('EXPO_PUBLIC_API_URL tanımlı değil.');
+}
 
 export type RecipeCategory =
   | 'BREAKFAST'
@@ -101,7 +106,7 @@ async function getAuthHeaders() {
 async function request<T>(path: string): Promise<T> {
   const headers = await getAuthHeaders();
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(`${API_BASE_URL}/api${path}`, {
     method: 'GET',
     headers,
   });
@@ -119,7 +124,7 @@ async function request<T>(path: string): Promise<T> {
 async function postRequest<T>(path: string, body: unknown): Promise<T> {
   const headers = await getAuthHeaders();
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(`${API_BASE_URL}/api${path}`, {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
@@ -138,7 +143,7 @@ async function postRequest<T>(path: string, body: unknown): Promise<T> {
 async function deleteRequest<T>(path: string): Promise<T> {
   const headers = await getAuthHeaders();
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(`${API_BASE_URL}/api${path}`, {
     method: 'DELETE',
     headers,
   });

@@ -736,13 +736,13 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   progressCard: {
-    backgroundColor: '#DCE3C8',
-    borderRadius: 18,
-    padding: 14,
-    gap: 12,
-    borderWidth: 1,
-    borderColor: '#C9D2AE',
-  },
+  backgroundColor: '#EAF3FF',          // #EEF5DE → #EAF3FF (mavi)
+  borderRadius: 18,
+  padding: 14,
+  gap: 12,
+  borderWidth: 1,
+  borderColor: 'rgba(90, 151, 240, 0.3)', // yeşil border → mavi border
+},
   progressHeader: {
     flexDirection: 'row',
     gap: 10,

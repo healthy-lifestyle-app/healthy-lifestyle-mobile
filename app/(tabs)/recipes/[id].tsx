@@ -17,9 +17,17 @@ import {
   Lightbulb,
   Users,
 } from 'lucide-react-native';
-
 import Screen from '@/components/Screen';
-import { getRecipeById, type Recipe } from '@/lib/recipesApi';
+import {
+  getRecipeById,
+  mapCategoryFromBackend,
+  getRecipeTitle,
+  getRecipeCalories,
+  getRecipeTime,
+  getIngredientLabel,
+  getStepLabel,
+  type BackendRecipe,
+} from '@/lib/recipesApi';
 
 const COLORS = {
   background: '#F8F6EC',
@@ -33,100 +41,32 @@ const COLORS = {
   border: '#E6E2F0',
   white: '#FFFFFF',
   purpleSoft: '#F0EDFA',
+  orange: '#FF6B1A',
 };
-
-type RecipeIngredient = {
-  id?: string;
-  foodId?: string | null;
-  name?: string | null;
-  amountText?: string | null;
-  orderNo?: number;
-};
-
-type RecipeStep = {
-  id?: string;
-  orderNo?: number;
-  text?: string | null;
-};
-
-function getCategoryLabel(category?: string | null) {
-  switch (category) {
-    case 'BREAKFAST':
-      return 'Kahvaltı';
-    case 'LUNCH':
-      return 'Öğle';
-    case 'DINNER':
-      return 'Akşam';
-    case 'SNACK':
-      return 'Atıştırmalık';
-    default:
-      return 'Diğer';
-  }
-}
-
-function getIngredientLabel(ingredient: RecipeIngredient | string) {
-  if (typeof ingredient === 'string') {
-    return ingredient;
-  }
-
-  const name = ingredient.name ?? 'Malzeme';
-  const amount = ingredient.amountText ?? '';
-
-  return amount ? `${name} - ${amount}` : name;
-}
-
-function getStepLabel(step: RecipeStep | string) {
-  if (typeof step === 'string') {
-    return step;
-  }
-
-  return step.text ?? 'Adım bilgisi bulunamadı.';
-}
 
 export default function RecipeDetailScreen() {
-  const { id } = useLocalSearchParams<{ id?: string }>();
-
-  const [recipe, setRecipe] = useState<Recipe | null>(null);
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const [recipe, setRecipe] = useState<BackendRecipe | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isFav, setIsFav] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
-      if (!id) {
-        setLoading(false);
-        setError('Tarif bilgisi bulunamadı.');
-        return;
-      }
-
-      let isActive = true;
-
-      async function fetchRecipe() {
-        try {
-          setLoading(true);
-          setError('');
-
-          const data = await getRecipeById(String(id));
-
-          if (isActive) {
-            setRecipe(data);
-          }
-        } catch (err: any) {
-          console.log('GET_RECIPE_DETAIL_ERROR', err?.response?.data ?? err);
-          if (isActive) {
-            setError('Tarif detayı yüklenemedi.');
-          }
-        } finally {
-          if (isActive) {
-            setLoading(false);
-          }
-        }
-      }
-
-      fetchRecipe();
-
-      return () => {
-        isActive = false;
-      };
+      if (!id) return;
+      setLoading(true);
+      setError(null);
+      getRecipeById(String(id))
+        .then((data) => {
+          setRecipe(data);
+          setIsFav(data.isFavorite ?? false);
+        })
+        .catch((err: unknown) => {
+          setError(
+            err instanceof Error ? err.message : 'Tarif yüklenemedi.',
+          );
+        })
+        .finally(() => setLoading(false));
     }, [id]),
   );
 
@@ -135,7 +75,6 @@ export default function RecipeDetailScreen() {
       <Screen backgroundColor={COLORS.background} edges={['top']}>
         <View style={styles.center}>
           <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>Tarif yükleniyor...</Text>
         </View>
       </Screen>
     );
@@ -145,7 +84,7 @@ export default function RecipeDetailScreen() {
     return (
       <Screen backgroundColor={COLORS.background} edges={['top']}>
         <View style={styles.center}>
-          <Text style={styles.notFound}>{error || 'Tarif bulunamadı.'}</Text>
+          <Text style={styles.notFound}>{error ?? 'Tarif bulunamadı.'}</Text>
           <Pressable
             style={styles.backMainBtn}
             onPress={() => router.replace('/recipes')}>
@@ -156,151 +95,143 @@ export default function RecipeDetailScreen() {
     );
   }
 
-  const ingredients = (recipe.ingredients ?? []) as Array<
-    RecipeIngredient | string
-  >;
-  const steps = (recipe.steps ?? []) as Array<RecipeStep | string>;
+  const title = getRecipeTitle(recipe);
+  const calories = getRecipeCalories(recipe);
+  const time = getRecipeTime(recipe);
+  const displayCategory = mapCategoryFromBackend(recipe.category ?? '');
+
+  const ingredients = Array.isArray(recipe.ingredients)
+    ? recipe.ingredients
+    : [];
+
+  const rawSteps = Array.isArray(recipe.steps)
+    ? recipe.steps
+    : Array.isArray(recipe.instructions)
+    ? (recipe.instructions as Array<{ text?: string } | string>)
+    : typeof recipe.instructions === 'string'
+    ? [recipe.instructions]
+    : [];
 
   return (
     <Screen backgroundColor={COLORS.background} edges={['top']}>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        {/* HERO */}
         <View style={styles.hero}>
           <Image
-            source={{
-              uri:
-                recipe.imageUrl ??
-                'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=1200&q=80',
-            }}
+            source={
+              recipe.imageUrl
+                ? { uri: recipe.imageUrl }
+                : {
+                    uri: 'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=1200&q=80',
+                  }
+            }
             style={styles.heroImage}
             contentFit="cover"
           />
-
           <View style={styles.heroOverlay} />
-
           <View style={styles.heroActions}>
             <Pressable style={styles.heroBtn} onPress={() => router.back()}>
               <ArrowLeft size={20} color={COLORS.primary} strokeWidth={2.4} />
             </Pressable>
-
-            <Pressable style={styles.heroBtn}>
-              <Heart size={20} color="#FF6B1A" strokeWidth={2.2} />
+            <Pressable
+              style={styles.heroBtn}
+              onPress={() => setIsFav((prev) => !prev)}>
+              <Heart
+                size={20}
+                color={isFav ? COLORS.orange : '#B8BFCD'}
+                fill={isFav ? COLORS.orange : 'transparent'}
+                strokeWidth={2.2}
+              />
             </Pressable>
           </View>
-
           <View style={styles.heroBottom}>
-            <Text style={styles.heroTitle}>{recipe.title}</Text>
-
+            <Text style={styles.heroTitle}>{title}</Text>
             <View style={styles.heroMeta}>
               <View style={styles.heroMetaItem}>
-                <Clock3 size={16} color="#FFFFFF" />
-                <Text style={styles.heroMetaText}>
-                  {recipe.prepTimeMin ?? 0} dk
-                </Text>
+                <Clock3 size={14} color="#FFFFFF" />
+                <Text style={styles.heroMetaText}>{time} dk</Text>
               </View>
-
               <View style={styles.heroMetaItem}>
-                <Users size={16} color="#FFFFFF" />
+                <Users size={14} color="#FFFFFF" />
                 <Text style={styles.heroMetaText}>
                   {recipe.servings ?? 1} kişi
                 </Text>
               </View>
-
-              <Text style={styles.heroMetaText}>
-                {recipe.caloriesKcal ?? 0} kcal
-              </Text>
+              <Text style={styles.heroMetaText}>{calories} kcal</Text>
             </View>
           </View>
         </View>
 
         <View style={styles.content}>
-          {recipe.description ? (
-            <Text style={styles.description}>{recipe.description}</Text>
-          ) : null}
-
-          {(recipe.tags ?? []).length > 0 ? (
+          {/* TAGS */}
+          {(recipe.tags ?? []).length > 0 && (
             <View style={styles.tagRow}>
-              {(recipe.tags ?? []).map((tag) => (
-                <View key={tag} style={styles.tag}>
+              {(recipe.tags ?? []).map((tag, i) => (
+                <View key={`tag-${i}`} style={styles.tag}>
                   <Text style={styles.tagText}>{tag}</Text>
                 </View>
               ))}
             </View>
-          ) : null}
+          )}
 
+          {/* KATEGORİ */}
           <View style={styles.categoryCard}>
             <View style={styles.categoryIcon}>
-              <ChefHat size={22} color={COLORS.white} />
+              <ChefHat size={20} color={COLORS.white} />
             </View>
-
             <View>
-              <Text style={styles.categoryTitle}>
-                {getCategoryLabel(recipe.category)}
-              </Text>
+              <Text style={styles.categoryTitle}>{displayCategory}</Text>
               <Text style={styles.categorySub}>Öğün kategorisi</Text>
             </View>
           </View>
 
-          <View style={styles.block}>
-            <Text style={styles.blockTitle}>Malzemeler</Text>
+          {/* AÇIKLAMA */}
+          {recipe.description ? (
+            <View style={styles.descCard}>
+              <Text style={styles.descText}>{recipe.description}</Text>
+            </View>
+          ) : null}
 
-            {ingredients.length === 0 ? (
-              <Text style={styles.rowText}>Malzeme bilgisi bulunamadı.</Text>
-            ) : (
-              ingredients.map((ingredient, index) => (
-                <View
-                  key={
-                    typeof ingredient === 'string'
-                      ? `${recipe.id}-ingredient-${index}`
-                      : ingredient.id ?? `${recipe.id}-ingredient-${index}`
-                  }
-                  style={styles.row}>
+          {/* MALZEMELER */}
+          {ingredients.length > 0 && (
+            <View style={styles.block}>
+              <Text style={styles.blockTitle}>Malzemeler</Text>
+              {ingredients.map((ingredient, index) => (
+                <View key={`ing-${index}`} style={styles.row}>
                   <View style={styles.numPill}>
                     <Text style={styles.numPillText}>{index + 1}</Text>
                   </View>
-
                   <Text style={styles.rowText}>
                     {getIngredientLabel(ingredient)}
                   </Text>
                 </View>
-              ))
-            )}
-          </View>
+              ))}
+            </View>
+          )}
 
-          <View style={styles.block}>
-            <Text style={styles.blockTitle}>Hazırlanışı</Text>
-
-            {steps.length === 0 ? (
-              <Text style={styles.rowText}>Hazırlanış adımı bulunamadı.</Text>
-            ) : (
-              steps.map((step, index) => (
-                <View
-                  key={
-                    typeof step === 'string'
-                      ? `${recipe.id}-step-${index}`
-                      : step.id ?? `${recipe.id}-step-${index}`
-                  }
-                  style={styles.stepCard}>
+          {/* HAZIRLANIŞ */}
+          {rawSteps.length > 0 && (
+            <View style={styles.block}>
+              <Text style={styles.blockTitle}>Hazırlanışı</Text>
+              {rawSteps.map((step, index) => (
+                <View key={`step-${index}`} style={styles.stepCard}>
                   <View style={styles.numPill}>
                     <Text style={styles.numPillText}>{index + 1}</Text>
                   </View>
-
                   <Text style={styles.stepText}>{getStepLabel(step)}</Text>
                 </View>
-              ))
-            )}
-          </View>
+              ))}
+            </View>
+          )}
 
+          {/* BESİN DEĞERLERİ */}
           <View style={styles.nutritionCard}>
             <Text style={styles.blockTitle}>Besin Değerleri</Text>
-
             <View style={styles.nutritionGrid}>
               <View style={styles.nutritionItem}>
-                <Text style={styles.nutritionValue}>
-                  {recipe.caloriesKcal ?? 0}
-                </Text>
+                <Text style={styles.nutritionValue}>{calories}</Text>
                 <Text style={styles.nutritionLabel}>Kalori</Text>
               </View>
-
               <View style={styles.nutritionItem}>
                 <Text style={styles.nutritionValue}>
                   {recipe.servings ?? 1}
@@ -310,10 +241,10 @@ export default function RecipeDetailScreen() {
             </View>
           </View>
 
+          {/* İPUCU */}
           {recipe.tip ? (
             <View style={styles.tipCard}>
               <Lightbulb size={18} color="#E8BA4E" />
-
               <View style={{ flex: 1 }}>
                 <Text style={styles.tipTitle}>İpucu</Text>
                 <Text style={styles.tipText}>{recipe.tip}</Text>
@@ -327,52 +258,28 @@ export default function RecipeDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
+  container: { flex: 1, backgroundColor: COLORS.background },
   center: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    padding: 20,
   },
-  loadingText: {
-    fontSize: 15,
-    color: COLORS.muted,
-    fontWeight: '700',
-  },
-  notFound: {
-    fontSize: 18,
-    color: COLORS.primary,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
+  notFound: { fontSize: 16, color: COLORS.primary, fontWeight: '700' },
   backMainBtn: {
-    height: 44,
-    borderRadius: 16,
+    height: 42,
+    borderRadius: 14,
     paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.green,
   },
-  backMainBtnText: {
-    color: COLORS.white,
-    fontWeight: '800',
-    fontSize: 16,
-  },
-  hero: {
-    height: 320,
-    position: 'relative',
-  },
-  heroImage: {
-    width: '100%',
-    height: '100%',
-  },
+  backMainBtnText: { color: COLORS.white, fontWeight: '800', fontSize: 15 },
+  hero: { height: 300, position: 'relative' },
+  heroImage: { width: '100%', height: '100%' },
   heroOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(18, 20, 28, 0.36)',
+    backgroundColor: 'rgba(18, 20, 28, 0.38)',
   },
   heroActions: {
     position: 'absolute',
@@ -383,96 +290,62 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   heroBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     backgroundColor: 'rgba(255,255,255,0.94)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  heroBottom: {
-    position: 'absolute',
-    left: 20,
-    right: 20,
-    bottom: 20,
-  },
+  heroBottom: { position: 'absolute', left: 16, right: 16, bottom: 16 },
   heroTitle: {
-    fontSize: 42,
+    fontSize: 22,
     fontWeight: '900',
     color: '#FFFFFF',
-    marginBottom: 8,
+    marginBottom: 6,
   },
-  heroMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flexWrap: 'wrap',
-  },
-  heroMetaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  heroMetaText: {
-    fontSize: 21,
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  content: {
-    padding: 16,
-    gap: 14,
-  },
-  description: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: '#273045',
-    fontWeight: '600',
-  },
-  tagRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
+  heroMeta: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  heroMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  heroMetaText: { fontSize: 13, color: '#FFFFFF', fontWeight: '600' },
+  content: { padding: 16, gap: 12 },
+  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   tag: {
     borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     backgroundColor: COLORS.purpleSoft,
   },
-  tagText: {
-    color: COLORS.primary,
-    fontSize: 14,
-    fontWeight: '800',
-  },
+  tagText: { color: COLORS.primary, fontSize: 12, fontWeight: '700' },
   categoryCard: {
-    borderRadius: 22,
+    borderRadius: 18,
     backgroundColor: COLORS.greenSoft,
     borderWidth: 1,
     borderColor: 'rgba(168, 200, 90, 0.35)',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: 14,
+    padding: 12,
   },
   categoryIcon: {
-    width: 62,
-    height: 62,
-    borderRadius: 20,
+    width: 46,
+    height: 46,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.green,
   },
-  categoryTitle: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: COLORS.text,
+  categoryTitle: { fontSize: 15, fontWeight: '800', color: COLORS.text },
+  categorySub: { fontSize: 12, color: COLORS.muted, marginTop: 2 },
+  descCard: {
+    borderRadius: 16,
+    backgroundColor: COLORS.purpleSoft,
+    borderWidth: 1,
+    borderColor: 'rgba(201, 195, 234, 0.45)',
+    padding: 12,
   },
-  categorySub: {
-    fontSize: 16,
-    color: COLORS.muted,
-  },
+  descText: { fontSize: 14, color: '#273045', lineHeight: 21 },
   block: {
-    borderRadius: 24,
+    borderRadius: 20,
     backgroundColor: COLORS.blueSoft,
     borderWidth: 1,
     borderColor: 'rgba(90, 151, 240, 0.35)',
@@ -480,79 +353,52 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   blockTitle: {
-    fontSize: 24,
-    fontWeight: '900',
+    fontSize: 16,
+    fontWeight: '800',
     color: COLORS.primary,
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  rowText: {
-    flex: 1,
-    fontSize: 18,
-    color: '#273045',
-  },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  rowText: { flex: 1, fontSize: 14, color: '#273045' },
   numPill: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F4D588',
   },
-  numPillText: {
-    color: COLORS.white,
-    fontWeight: '800',
-    fontSize: 14,
-  },
+  numPillText: { color: COLORS.white, fontWeight: '800', fontSize: 12 },
   stepCard: {
-    borderRadius: 18,
+    borderRadius: 14,
     backgroundColor: 'rgba(255,255,255,0.65)',
-    padding: 12,
+    padding: 10,
     flexDirection: 'row',
     gap: 10,
     alignItems: 'flex-start',
   },
-  stepText: {
-    flex: 1,
-    color: '#273045',
-    fontSize: 18,
-    lineHeight: 25,
-  },
+  stepText: { flex: 1, color: '#273045', fontSize: 14, lineHeight: 21 },
   nutritionCard: {
-    borderRadius: 24,
+    borderRadius: 20,
     backgroundColor: COLORS.blueSoft,
     borderWidth: 1,
     borderColor: 'rgba(90, 151, 240, 0.35)',
     padding: 14,
     gap: 10,
   },
-  nutritionGrid: {
-    flexDirection: 'row',
-    gap: 10,
-  },
+  nutritionGrid: { flexDirection: 'row', gap: 10 },
   nutritionItem: {
     flex: 1,
-    borderRadius: 16,
+    borderRadius: 14,
     backgroundColor: 'rgba(255,255,255,0.7)',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
   },
-  nutritionValue: {
-    fontSize: 40,
-    fontWeight: '900',
-    color: COLORS.blue,
-  },
-  nutritionLabel: {
-    fontSize: 16,
-    color: '#3D4B5F',
-  },
+  nutritionValue: { fontSize: 28, fontWeight: '900', color: COLORS.blue },
+  nutritionLabel: { fontSize: 12, color: '#3D4B5F', marginTop: 2 },
   tipCard: {
-    borderRadius: 22,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: 'rgba(168, 200, 90, 0.35)',
     backgroundColor: COLORS.greenSoft,
@@ -562,14 +408,10 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   tipTitle: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: '800',
     color: COLORS.text,
-    marginBottom: 4,
+    marginBottom: 3,
   },
-  tipText: {
-    fontSize: 16,
-    color: '#273045',
-    lineHeight: 24,
-  },
+  tipText: { fontSize: 13, color: '#273045', lineHeight: 20 },
 });
