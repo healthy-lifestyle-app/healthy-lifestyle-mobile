@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { Alert, View, Text, Pressable, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { updateMe, type UpdateMePayload } from '@/api/user';
 import Button from '@/components/button';
 import Screen from '@/components/Screen';
 import { setOnboardingDone } from '@/lib/storage';
@@ -16,54 +18,76 @@ type Goal = {
 
 const GOALS: Goal[] = [
   {
-    key: "healthy",
-    label: "Sağlıklı yaşam",
-    icon: "♡",
-    bgColor: "#C7DC78",
-    iconBg: "#EEF5D6",
-    textColor: "#FFFFFF",
+    key: 'healthy',
+    label: 'Sağlıklı yaşam',
+    icon: '♡',
+    bgColor: '#C7DC78',
+    iconBg: '#EEF5D6',
+    textColor: '#FFFFFF',
   },
   {
-    key: "lose",
-    label: "Kilo Vermek",
-    icon: "🥗",
-    bgColor: "#F4E3C3",
-    iconBg: "#F9EFE0",
-    textColor: "#5B5B5B",
+    key: 'lose',
+    label: 'Kilo Vermek',
+    icon: '🥗',
+    bgColor: '#F4E3C3',
+    iconBg: '#F9EFE0',
+    textColor: '#5B5B5B',
   },
   {
-    key: "gain",
-    label: "Kilo Almak",
-    icon: "◎",
-    bgColor: "#E7E0F7",
-    iconBg: "#F1ECFB",
-    textColor: "#6A6680",
+    key: 'gain',
+    label: 'Kilo Almak',
+    icon: '◎',
+    bgColor: '#E7E0F7',
+    iconBg: '#F1ECFB',
+    textColor: '#6A6680',
   },
   {
-    key: "maintain",
-    label: "Formumu Korumak",
-    icon: "✧",
-    bgColor: "#8D81C9",
-    iconBg: "#B3A8E4",
-    textColor: "#FFFFFF",
+    key: 'maintain',
+    label: 'Formumu Korumak',
+    icon: '✧',
+    bgColor: '#8D81C9',
+    iconBg: '#B3A8E4',
+    textColor: '#FFFFFF',
   },
 ];
 
 export default function Goals() {
   const [selected, setSelected] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const canFinish = selected.length > 0;
+  const canFinish = selected.length > 0 && !isSubmitting;
 
   const toggle = (key: string) => {
-  setSelected((prev) =>
-    prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]
-  );
-};
+    setSelected((prev) =>
+      prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key],
+    );
+  };
 
-const handleFinish = async () => {
-  await setOnboardingDone();
-  router.replace('/(tabs)/home');
-};
+  const handleFinish = async () => {
+    if (!canFinish) return;
+
+    try {
+      setIsSubmitting(true);
+
+      const raw = await AsyncStorage.getItem('onboarding_profile');
+      const profile = raw ? JSON.parse(raw) : {};
+      const selectedGoal = selected[0];
+      const payload = createOnboardingPayload(profile, selectedGoal);
+
+      await updateMe(payload);
+      await setOnboardingDone();
+      router.replace('/(tabs)/home');
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Onboarding bilgileri kaydedilirken bir hata oluştu.';
+
+      Alert.alert('Kaydedilemedi', message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <Screen backgroundColor="#F8F6EC" edges={['top']}>
@@ -86,11 +110,18 @@ const handleFinish = async () => {
                     isSelected && styles.goalCardSelected,
                   ]}
                 >
-                  <View style={[styles.goalIcon, { backgroundColor: goal.iconBg }]}>
+                  <View
+                    style={[styles.goalIcon, { backgroundColor: goal.iconBg }]}
+                  >
                     <Text style={styles.goalIconText}>{goal.icon}</Text>
                   </View>
 
-                  <Text style={[styles.goalText, { color: goal.textColor ?? '#1F2430' }]}>
+                  <Text
+                    style={[
+                      styles.goalText,
+                      { color: goal.textColor ?? '#1F2430' },
+                    ]}
+                  >
                     {goal.label}
                   </Text>
                 </Pressable>
@@ -108,7 +139,7 @@ const handleFinish = async () => {
 
         <View style={styles.footer}>
           <Button
-            title="Bitir ›"
+            title={isSubmitting ? 'Kaydediliyor...' : 'Bitir ›'}
             onPress={handleFinish}
             disabled={!canFinish}
             style={{ backgroundColor: '#A8C85A', borderRadius: 24 }}
@@ -117,6 +148,47 @@ const handleFinish = async () => {
       </View>
     </Screen>
   );
+}
+
+function createOnboardingPayload(
+  profile: Record<string, unknown>,
+  selectedGoal: string,
+): UpdateMePayload {
+  return {
+    fullName: asString(profile.name),
+    birthDate: birthDateFromAge(asNumber(profile.age)),
+    heightCm: asNumber(profile.height),
+    weightKg: asNumber(profile.weight),
+    targetWeightKg: asNumber(profile.targetWeight),
+    goalType: mapGoalType(selectedGoal),
+    activityLevel: 'medium',
+  };
+}
+
+function mapGoalType(goal: string): UpdateMePayload['goalType'] {
+  if (goal === 'lose') return 'lose';
+  if (goal === 'gain') return 'gain';
+  return 'maintain';
+}
+
+function birthDateFromAge(age?: number) {
+  if (!age) return undefined;
+
+  const year = new Date().getFullYear() - age;
+  return `${year}-01-01`;
+}
+
+function asNumber(value: unknown) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) && numberValue > 0
+    ? numberValue
+    : undefined;
+}
+
+function asString(value: unknown) {
+  return typeof value === 'string' && value.trim().length > 0
+    ? value.trim()
+    : undefined;
 }
 
 const styles = StyleSheet.create({

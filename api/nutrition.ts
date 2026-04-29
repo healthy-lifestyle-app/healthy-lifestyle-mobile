@@ -54,6 +54,14 @@ export type NutritionSummary = {
   protein: number;
   carbs: number;
   fat: number;
+  targets?: NutritionTargets;
+};
+
+export type NutritionTargets = {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
 };
 
 export type CreateMealPayload = {
@@ -159,11 +167,19 @@ function normalizeMeal(raw: any): NutritionMeal {
 
 function normalizeSummary(raw: any): NutritionSummary {
   const totals = raw?.totals ?? raw?.total ?? raw;
+  const targets = raw?.targets ?? {};
+
   return {
     calories: Number(totals?.calories ?? totals?.totalCalories ?? totals?.total_calories ?? 0),
     protein: Number(totals?.protein ?? totals?.totalProtein ?? totals?.total_protein ?? 0),
     carbs: Number(totals?.carbs ?? totals?.totalCarbs ?? totals?.total_carbs ?? 0),
     fat: Number(totals?.fat ?? totals?.totalFat ?? totals?.total_fat ?? 0),
+    targets: {
+      calories: Number(targets?.calories ?? 2000),
+      protein: Number(targets?.protein ?? 120),
+      carbs: Number(targets?.carbs ?? 240),
+      fat: Number(targets?.fat ?? 70),
+    },
   };
 }
 
