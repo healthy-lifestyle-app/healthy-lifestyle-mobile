@@ -27,11 +27,7 @@ export class ApiError extends Error {
 }
 
 function extractMessage(data: unknown) {
-  if (
-    typeof data === 'object' &&
-    data !== null &&
-    'message' in data
-  ) {
+  if (typeof data === 'object' && data !== null && 'message' in data) {
     const message = (data as { message: unknown }).message;
 
     if (Array.isArray(message)) {
@@ -55,7 +51,6 @@ export async function apiRequest<T>(
   options: ApiRequestOptions = {},
 ): Promise<T> {
   const { method = 'GET', body, token } = options;
-
   const authToken = token ?? (await getAccessToken());
 
   const response = await fetch(`${API_URL}${path}`, {
@@ -64,7 +59,7 @@ export async function apiRequest<T>(
       'Content-Type': 'application/json',
       ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
     },
-    body: body ? JSON.stringify(body) : undefined,
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
 
   const contentType = response.headers.get('content-type');
@@ -73,7 +68,8 @@ export async function apiRequest<T>(
   if (contentType?.includes('application/json')) {
     data = await response.json();
   } else {
-    data = await response.text();
+    const text = await response.text();
+    data = text || null;
   }
 
   if (!response.ok) {
@@ -82,3 +78,20 @@ export async function apiRequest<T>(
 
   return data as T;
 }
+
+export const apiClient = {
+  get: <T>(path: string, token?: string | null) =>
+    apiRequest<T>(path, { method: 'GET', token }),
+
+  post: <T>(path: string, body?: unknown, token?: string | null) =>
+    apiRequest<T>(path, { method: 'POST', body, token }),
+
+  patch: <T>(path: string, body?: unknown, token?: string | null) =>
+    apiRequest<T>(path, { method: 'PATCH', body, token }),
+
+  put: <T>(path: string, body?: unknown, token?: string | null) =>
+    apiRequest<T>(path, { method: 'PUT', body, token }),
+
+  delete: <T>(path: string, token?: string | null) =>
+    apiRequest<T>(path, { method: 'DELETE', token }),
+};

@@ -63,14 +63,15 @@ export default function TabLayout() {
 />
 
         <Tabs.Screen
-          name="profile/index"
-          options={{
-            title: 'Profil',
-            tabBarIcon: ({ color }) => (
-              <IconSymbol size={28} name="person.fill" color={color} />
-            ),
-          }}
-        />
+  name="profile"
+  options={{
+    title: 'Profil',
+    tabBarLabel: 'Profil',
+    tabBarIcon: ({ color }) => (
+      <IconSymbol size={28} name="person.fill" color={color} />
+    ),
+  }}
+/>
 
         <Tabs.Screen name="home/detail" options={{ href: null }} />
         <Tabs.Screen name="nutrition/add-meal" options={{ href: null }} />
