@@ -20,9 +20,9 @@ import {
   type MealItem,
   type NutritionMeal,
   type NutritionSummary,
+  type NutritionTargets,
 } from '@/api/nutrition';
 import Screen from '@/components/Screen';
-import { getNutritionTargets, type NutritionTargets } from '@/lib/nutritionTargets';
 
 const COLORS = {
   background: '#F8F6EC',
@@ -41,6 +41,13 @@ const COLORS = {
   border: '#E6E2F0',
   white: '#FFFFFF',
   danger: '#E25555',
+};
+
+const DEFAULT_TARGETS: NutritionTargets = {
+  calories: 2000,
+  protein: 120,
+  carbs: 240,
+  fat: 70,
 };
 
 function getTodayDate() {
@@ -361,25 +368,21 @@ export default function NutritionScreen() {
     fat: 0,
   });
   const [targets, setTargets] = useState<NutritionTargets>({
-    calories: 2000,
-    protein: 120,
-    carbs: 240,
-    fat: 70,
+    ...DEFAULT_TARGETS,
   });
 
   const groupedMeals = useMemo(() => groupMealsByType(meals), [meals]);
 
   const loadData = useCallback(async () => {
     try {
-      const [mealsData, summaryData, targetsData] = await Promise.all([
+      const [mealsData, summaryData] = await Promise.all([
         getMealsByDate(date),
         getNutritionSummary(date),
-        getNutritionTargets(),
       ]);
 
       setMeals(mealsData);
       setSummary(summaryData);
-      setTargets(targetsData);
+      setTargets(summaryData.targets ?? DEFAULT_TARGETS);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Beslenme verileri alınamadı.';
