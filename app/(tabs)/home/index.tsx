@@ -161,17 +161,30 @@ export default function HomeScreen() {
     userProfile?.startWeightKg ?? userProfile?.startWeight ?? currentWeight,
   );
 
-  const weightGoalKg = Math.max(startWeight - targetWeight, 0);
-  const currentLostKg = Math.max(startWeight - currentWeight, 0);
-  const remainingKg = Math.max(currentWeight - targetWeight, 0);
+const currentWeightKg = currentWeight;
+const targetWeightKg = targetWeight;
 
-  const goalPercent = useMemo(() => {
-    if (weightGoalKg <= 0) {
-      return 0;
-    }
+const hasWeightGoal = currentWeightKg > 0 && targetWeightKg > 0;
 
-    return Math.min((currentLostKg / weightGoalKg) * 100, 100);
-  }, [currentLostKg, weightGoalKg]);
+const totalGoalDiffKg = hasWeightGoal
+  ? Math.abs(startWeight - targetWeightKg)
+  : 0;
+
+const remainingKg = hasWeightGoal
+  ? Math.abs(currentWeightKg - targetWeightKg)
+  : 0;
+
+const completedKg = hasWeightGoal
+  ? Math.max(totalGoalDiffKg - remainingKg, 0)
+  : 0;
+
+const goalPercent = useMemo(() => {
+  if (!hasWeightGoal || totalGoalDiffKg <= 0) {
+    return currentWeightKg === targetWeightKg && hasWeightGoal ? 100 : 0;
+  }
+
+  return Math.min((completedKg / totalGoalDiffKg) * 100, 100);
+}, [completedKg, currentWeightKg, hasWeightGoal, targetWeightKg, totalGoalDiffKg]);
 
   const caloriesValue = nutrition?.calories ?? 0;
   const exerciseMinutes = activity?.totalDurationMinutes ?? 0;
@@ -374,53 +387,65 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.progressCard}>
-            <View style={styles.progressHeader}>
-              <View style={styles.progressBadge}>
-                <Text style={styles.progressBadgeText}>〰</Text>
-              </View>
+  <View style={styles.progressHeader}>
+    <View style={styles.progressBadge}>
+      <Text style={styles.progressBadgeText}>〰</Text>
+    </View>
 
-              <View style={{ flex: 1 }}>
-                <Text style={styles.progressTitle}>Harika İlerleme! 🎉</Text>
-                <Text style={styles.progressSubtitle}>
-                  {currentLostKg > 0
-                    ? `Son süreçte ${currentLostKg.toFixed(1)} kg kaybettin`
-                    : 'Hedefe doğru ilerliyorsun'}
-                </Text>
-              </View>
-            </View>
+    <View style={{ flex: 1 }}>
+      <Text style={styles.progressTitle}>Harika İlerleme! 🎉</Text>
+      <Text style={styles.progressSubtitle}>
+        {hasWeightGoal
+          ? `${currentWeightKg.toFixed(1)} kg → ${targetWeightKg.toFixed(
+              1,
+            )} kg hedefine ilerliyorsun`
+          : 'Hedefe doğru ilerliyorsun'}
+      </Text>
+    </View>
+  </View>
 
-            <View style={styles.weightInfoBox}>
-              <View>
-                <Text style={styles.weightMain}>
-                  {`${currentLostKg.toFixed(1)} kg = ${Math.round(
-                    currentLostKg * 4,
-                  )} paket margarin`}
-                </Text>
-                <Text style={styles.weightSub}>artık vücudunda değil!</Text>
-              </View>
+  <View style={styles.weightInfoBox}>
+    <View>
+      <Text style={styles.weightMain}>
+        {hasWeightGoal
+          ? `Şu an: ${currentWeightKg.toFixed(1)} kg`
+          : 'Kilo hedefi bulunamadı'}
+      </Text>
 
-              <Text style={styles.weightGreen}>
-                {`-${currentLostKg.toFixed(1)}\nkg`}
-              </Text>
-            </View>
+      <Text style={styles.weightSub}>
+        {hasWeightGoal
+          ? `Hedef: ${targetWeightKg.toFixed(1)} kg`
+          : 'Profilinden hedef kilonu ekleyebilirsin'}
+      </Text>
+    </View>
 
-            <View style={styles.goalRow}>
-              <Text style={styles.goalLabel}>
-                Hedef: {weightGoalKg.toFixed(1)} kg
-              </Text>
-              <Text style={styles.goalPercent}>
-                %{goalPercent.toFixed(1)} tamamlandı
-              </Text>
-            </View>
+    <Text style={styles.weightGreen}>
+      {hasWeightGoal ? `${remainingKg.toFixed(1)}\nkg` : '—'}
+    </Text>
+  </View>
 
-            <View style={styles.goalTrack}>
-              <View style={[styles.goalFill, { width: `${goalPercent}%` }]} />
-            </View>
+  <View style={styles.goalRow}>
+    <Text style={styles.goalLabel}>
+      {hasWeightGoal
+        ? `Hedef: ${targetWeightKg.toFixed(1)} kg`
+        : 'Hedef belirlenmedi'}
+    </Text>
 
-            <Text style={styles.remainingText}>
-              Kalan: {remainingKg.toFixed(1)} kg
-            </Text>
-          </View>
+    <Text style={styles.goalPercent}>
+      %{goalPercent.toFixed(1)} tamamlandı
+    </Text>
+  </View>
+
+  <View style={styles.goalTrack}>
+    <View style={[styles.goalFill, { width: `${goalPercent}%` }]} />
+  </View>
+
+  <Text style={styles.remainingText}>
+    {hasWeightGoal
+      ? `Kalan: ${remainingKg.toFixed(1)} kg`
+      : 'Kalan bilgi hesaplanamadı'}
+  </Text>
+</View>
 
           <View style={styles.actionSection}>
             <View style={styles.topActionRow}>
