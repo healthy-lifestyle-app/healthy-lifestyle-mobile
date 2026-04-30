@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingHorizontal: 20,
     paddingTop: 18,
-    paddingBottom: 32,
+    paddingBottom: 24,
   },
   header: {
     marginBottom: 24,
