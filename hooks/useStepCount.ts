@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { Pedometer } from 'expo-sensors';
 
 export function useStepCount() {
   const [steps, setSteps] = useState(0);
   const [isAvailable, setIsAvailable] = useState(false);
-  const [hasPermission, setHasPermission] = useState(true);
+  const [hasPermission, setHasPermission] = useState(false);
+
+  const subscriptionRef = useRef<{ remove: () => void } | null>(null);
 
   const loadSteps = useCallback(async () => {
     try {
@@ -20,19 +22,26 @@ export function useStepCount() {
       setIsAvailable(available);
 
       if (!available) {
-        setSteps(0);
-        return;
-      }
-
-      const permission = await Pedometer.requestPermissionsAsync();
-
-      if (!permission.granted) {
         setHasPermission(false);
         setSteps(0);
         return;
       }
 
-      setHasPermission(true);
+      const currentPermission = await Pedometer.getPermissionsAsync();
+
+      let granted = currentPermission.granted;
+
+      if (!granted && currentPermission.canAskAgain) {
+        const requestedPermission = await Pedometer.requestPermissionsAsync();
+        granted = requestedPermission.granted;
+      }
+
+      setHasPermission(granted);
+
+      if (!granted) {
+        setSteps(0);
+        return;
+      }
 
       const now = new Date();
       const startOfDay = new Date(
@@ -50,6 +59,7 @@ export function useStepCount() {
     } catch (error) {
       console.log('STEP_COUNT_ERROR', error);
       setIsAvailable(false);
+      setHasPermission(false);
       setSteps(0);
     }
   }, []);
@@ -61,28 +71,13 @@ export function useStepCount() {
       return;
     }
 
-    let subscription: { remove: () => void } | null = null;
-
-    const startWatching = async () => {
-      try {
-        const available = await Pedometer.isAvailableAsync();
-
-        if (!available) {
-          return;
-        }
-
-        subscription = Pedometer.watchStepCount((result) => {
-          setSteps((prev) => prev + (result.steps ?? 0));
-        });
-      } catch (error) {
-        console.log('STEP_WATCH_ERROR', error);
-      }
-    };
-
-    startWatching();
+    subscriptionRef.current = Pedometer.watchStepCount(() => {
+      loadSteps();
+    });
 
     return () => {
-      subscription?.remove();
+      subscriptionRef.current?.remove();
+      subscriptionRef.current = null;
     };
   }, [loadSteps]);
 

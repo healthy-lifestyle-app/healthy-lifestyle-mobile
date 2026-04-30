@@ -125,6 +125,15 @@ function getCardTone(category: string) {
     };
   }
 
+  // Atıştırma → turuncu/şeftali tonu
+  if (category === 'Atıştırma') {
+  return {
+    bg: '#FBF0F3',
+    border: 'rgba(220, 130, 155, 0.28)',
+    accent: '#C4607E',
+  };
+}
+
   return {
     bg: COLORS.greenSoft,
     border: 'rgba(168, 200, 90, 0.35)',
@@ -591,7 +600,7 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 20,
     paddingTop: 14,
-    paddingBottom: 120,
+    paddingBottom: 28,
     gap: 16,
   },
   headerRow: {

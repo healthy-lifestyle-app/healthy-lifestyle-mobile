@@ -573,7 +573,7 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 18,
     paddingTop: 4,
-    paddingBottom: 140,
+    paddingBottom: 24,
     backgroundColor: '#F8F5EE',
   },
   content: {
@@ -860,7 +860,7 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     paddingHorizontal: 18,
     paddingTop: 28,
-    paddingBottom: 38,
+    paddingBottom: 28,
     minHeight: 300,
     alignItems: 'center',
     justifyContent: 'center',
