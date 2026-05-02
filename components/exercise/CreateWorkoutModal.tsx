@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -14,35 +14,97 @@ import { Ionicons } from '@expo/vector-icons';
 
 import type { ExerciseOption, WorkoutTypeLabel } from '@/api/activity';
 
+export type CreateWorkoutPayload = {
+  name: string;
+  type: WorkoutTypeLabel;
+  estimatedDurationMin?: number;
+  estimatedCalories?: number;
+  exercises: Array<{
+    exerciseId: string;
+    orderNo: number;
+    durationSec?: number;
+    reps?: number;
+    sets?: number;
+    restSec?: number;
+  }>;
+};
+
 type CreateWorkoutModalProps = {
   visible: boolean;
   exerciseOptions: ExerciseOption[];
   onClose: () => void;
-  onSave: (payload: {
-    name: string;
-    type: WorkoutTypeLabel;
-    estimatedDurationMin?: number;
-    estimatedCalories?: number;
-    exercises: Array<{
-      exerciseId: number;
-      orderNo: number;
-      durationSec?: number;
-      reps?: number;
-      sets?: number;
-      restSec?: number;
-    }>;
-  }) => Promise<void>;
+  onSave: (payload: CreateWorkoutPayload) => Promise<void>;
 };
 
 type SelectedExerciseItem = {
-  exerciseId: number;
+  exerciseId: string;
   order: number;
   durationSec: number;
   sets?: number;
   reps?: number;
+  restSec?: number;
 };
 
-const WORKOUT_TYPES: WorkoutTypeLabel[] = ['HIIT', 'Güç', 'Yoga', 'Kardiyo'];
+const WORKOUT_TYPE_LABELS: Record<WorkoutTypeLabel, string> = {
+  HIIT: 'HIIT',
+  STRENGTH: 'Güç',
+  YOGA: 'Yoga',
+  CARDIO: 'Kardiyo',
+  WALKING: 'Yürüyüş',
+  PILATES: 'Pilates',
+  MOBILITY: 'Mobilite',
+  STRETCHING: 'Esneme',
+  CUSTOM: 'Özel',
+};
+
+function normalizeWorkoutType(type?: string | null): WorkoutTypeLabel {
+  switch (String(type ?? '').trim().toUpperCase()) {
+    case 'CARDIO':
+    case 'KARDIO':
+    case 'KARDİYO':
+      return 'CARDIO';
+    case 'WALKING':
+    case 'YÜRÜYÜŞ':
+      return 'WALKING';
+    case 'HIIT':
+      return 'HIIT';
+    case 'STRENGTH':
+    case 'GÜÇ':
+    case 'GUC':
+      return 'STRENGTH';
+    case 'PILATES':
+      return 'PILATES';
+    case 'MOBILITY':
+    case 'MOBİLİTE':
+      return 'MOBILITY';
+    case 'YOGA':
+      return 'YOGA';
+    case 'STRETCHING':
+    case 'ESNEME':
+      return 'STRETCHING';
+    default:
+      return 'CUSTOM';
+  }
+}
+
+function translateDifficulty(value?: string | null): string {
+  switch (String(value ?? '').toUpperCase()) {
+    case 'EASY':
+      return 'Kolay';
+    case 'MEDIUM':
+      return 'Orta';
+    case 'HARD':
+      return 'Zor';
+    case 'KOLAY':
+      return 'Kolay';
+    case 'ORTA':
+      return 'Orta';
+    case 'ZOR':
+      return 'Zor';
+    default:
+      return value ?? 'Orta';
+  }
+}
 
 export default function CreateWorkoutModal({
   visible,
@@ -56,25 +118,75 @@ export default function CreateWorkoutModal({
   const [calories, setCalories] = useState('200');
   const [saving, setSaving] = useState(false);
 
-  const [selectedExerciseId, setSelectedExerciseId] = useState<number>(
-    Number(exerciseOptions[0]?.id ?? 0)
+  const [selectedExerciseId, setSelectedExerciseId] = useState<string>(
+    exerciseOptions[0]?.id ?? ''
   );
   const [exerciseDuration, setExerciseDuration] = useState('30');
   const [exerciseSets, setExerciseSets] = useState('');
   const [exerciseReps, setExerciseReps] = useState('');
+  const [exerciseRest, setExerciseRest] = useState('30');
+  const [selectedExerciseCategory, setSelectedExerciseCategory] = useState<
+    WorkoutTypeLabel | 'ALL'
+  >('ALL');
 
   const [selectedExercises, setSelectedExercises] = useState<
     SelectedExerciseItem[]
   >([]);
 
+  const typeOptions = useMemo<WorkoutTypeLabel[]>(() => {
+    const options = Array.from(
+      new Set(
+        exerciseOptions
+          .map((item) => normalizeWorkoutType(item.category))
+          .filter((item) => item !== 'CUSTOM')
+      )
+    );
+
+    return options.length > 0 ? options : ['HIIT', 'STRENGTH', 'YOGA', 'CARDIO'];
+  }, [exerciseOptions]);
+
+  useEffect(() => {
+    if (!typeOptions.includes(type)) {
+      setType(typeOptions[0]);
+    }
+  }, [type, typeOptions]);
+
+  const exerciseCategories = useMemo<(WorkoutTypeLabel | 'ALL')[]>(() => {
+    const categories = Array.from(
+      new Set(
+        exerciseOptions
+          .map((item) => normalizeWorkoutType(item.category))
+          .filter((item) => item !== 'CUSTOM')
+      )
+    );
+
+    return ['ALL', ...categories];
+  }, [exerciseOptions]);
+
+  const filteredExerciseOptions = useMemo(() => {
+    if (selectedExerciseCategory === 'ALL') {
+      return exerciseOptions;
+    }
+
+    return exerciseOptions.filter(
+      (exercise) => normalizeWorkoutType(exercise.category) === selectedExerciseCategory
+    );
+  }, [exerciseOptions, selectedExerciseCategory]);
+
+  useEffect(() => {
+    if (!filteredExerciseOptions.some((exercise) => exercise.id === selectedExerciseId)) {
+      setSelectedExerciseId(filteredExerciseOptions[0]?.id ?? exerciseOptions[0]?.id ?? '');
+    }
+  }, [filteredExerciseOptions, exerciseOptions, selectedExerciseId]);
+
   const selectedExercise = useMemo(() => {
-    return exerciseOptions.find((item) => Number(item.id) === selectedExerciseId);
+    return exerciseOptions.find((item) => item.id === selectedExerciseId);
   }, [exerciseOptions, selectedExerciseId]);
 
   const selectedExerciseObjects = useMemo(() => {
     return selectedExercises
       .map((item) => {
-        const exercise = exerciseOptions.find((e) => Number(e.id) === item.exerciseId);
+        const exercise = exerciseOptions.find((e) => e.id === item.exerciseId);
 
         if (!exercise) {
           return null;
@@ -83,9 +195,10 @@ export default function CreateWorkoutModal({
         return {
           ...exercise,
           order: item.order,
-          selectedDuration: item.duration,
+          selectedDuration: item.durationSec,
           sets: item.sets,
           reps: item.reps,
+          restSec: item.restSec,
         };
       })
       .filter(Boolean);
@@ -93,13 +206,15 @@ export default function CreateWorkoutModal({
 
   const resetForm = () => {
     setName('');
-    setType('HIIT');
+    setType(typeOptions[0]);
     setDuration('30');
     setCalories('200');
-    setSelectedExerciseId(Number(exerciseOptions[0]?.id ?? 0));
+    setSelectedExerciseCategory('ALL');
+    setSelectedExerciseId(exerciseOptions[0]?.id ?? '');
     setExerciseDuration('30');
     setExerciseSets('');
     setExerciseReps('');
+    setExerciseRest('30');
     setSelectedExercises([]);
   };
 
@@ -117,6 +232,7 @@ export default function CreateWorkoutModal({
 
     const parsedSets = exerciseSets.trim() ? Number(exerciseSets) : undefined;
     const parsedReps = exerciseReps.trim() ? Number(exerciseReps) : undefined;
+    const parsedRestSec = exerciseRest.trim() ? Number(exerciseRest) : undefined;
 
     if (exerciseSets.trim() && Number.isNaN(parsedSets)) {
       Alert.alert('Uyarı', 'Set değeri sayı olmalıdır.');
@@ -128,6 +244,11 @@ export default function CreateWorkoutModal({
       return;
     }
 
+    if (exerciseRest.trim() && Number.isNaN(parsedRestSec)) {
+      Alert.alert('Uyarı', 'Dinlenme süresi sayı olmalıdır.');
+      return;
+    }
+
     setSelectedExercises((prev) => [
       ...prev,
       {
@@ -136,12 +257,14 @@ export default function CreateWorkoutModal({
         durationSec: Number(exerciseDuration.trim() || '30'),
         sets: parsedSets,
         reps: parsedReps,
+        restSec: parsedRestSec ?? Number(exerciseRest.trim() || '30'),
       },
     ]);
 
     setExerciseDuration('30');
     setExerciseSets('');
     setExerciseReps('');
+    setExerciseRest('30');
   };
 
   const handleRemoveExercise = (index: number) => {
@@ -181,6 +304,7 @@ export default function CreateWorkoutModal({
           durationSec: item.durationSec || undefined,
           sets: item.sets,
           reps: item.reps,
+          restSec: item.restSec,
         })),
       });
       resetForm();
@@ -223,7 +347,7 @@ export default function CreateWorkoutModal({
 
             <Text style={styles.label}>Antrenman Tipi</Text>
             <View style={styles.typeGrid}>
-              {WORKOUT_TYPES.map((item) => {
+              {typeOptions.map((item) => {
                 const isActive = item === type;
 
                 return (
@@ -238,7 +362,7 @@ export default function CreateWorkoutModal({
                         isActive && styles.typeButtonTextActive,
                       ]}
                     >
-                      {item}
+                      {WORKOUT_TYPE_LABELS[item] ?? item}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -275,11 +399,34 @@ export default function CreateWorkoutModal({
 
             <Text style={styles.sectionTitle}>Egzersiz Ekle</Text>
 
+            <View style={styles.filterRow}>
+              {exerciseCategories.map((category) => {
+                const isActive = category === selectedExerciseCategory;
+
+                return (
+                  <TouchableOpacity
+                    key={category}
+                    style={[styles.filterChip, isActive && styles.filterChipActive]}
+                    onPress={() => setSelectedExerciseCategory(category)}
+                  >
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        isActive && styles.filterChipTextActive,
+                      ]}
+                    >
+                      {category === 'ALL' ? 'Tümü' : WORKOUT_TYPE_LABELS[category]}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
             <View style={styles.exercisePickerBox}>
               <Text style={styles.pickerLabel}>Egzersiz Seç</Text>
               <View style={styles.exerciseOptions}>
-                {exerciseOptions.map((exercise) => {
-                  const isSelected = selectedExerciseId === Number(exercise.id);
+                {filteredExerciseOptions.map((exercise) => {
+                  const isSelected = selectedExerciseId === exercise.id;
 
                   return (
                     <TouchableOpacity
@@ -289,8 +436,9 @@ export default function CreateWorkoutModal({
                         isSelected && styles.exerciseOptionActive,
                       ]}
                       onPress={() => {
-                        setSelectedExerciseId(Number(exercise.id));
+                        setSelectedExerciseId(exercise.id);
                         setExerciseDuration(String(exercise.defaultDurationSec ?? 30));
+                        setExerciseRest(String(exercise.defaultRestSec ?? exercise.restSec ?? 30));
                       }}
                     >
                       <Text
@@ -334,6 +482,15 @@ export default function CreateWorkoutModal({
                 placeholderTextColor="#A1A1AA"
                 style={styles.smallInput}
               />
+
+              <TextInput
+                value={exerciseRest}
+                onChangeText={setExerciseRest}
+                keyboardType="numeric"
+                placeholder="Dinlenme"
+                placeholderTextColor="#A1A1AA"
+                style={styles.smallInput}
+              />
             </View>
 
             <TouchableOpacity style={styles.addButton} onPress={handleAddExercise}>
@@ -360,9 +517,11 @@ export default function CreateWorkoutModal({
                         <View style={styles.selectedTextArea}>
                           <Text style={styles.selectedName}>{exercise.name}</Text>
                           <Text style={styles.selectedMeta}>
-                            {exercise.durationSec} sn
+                            {exercise.difficulty ? `${translateDifficulty(exercise.difficulty)} • ` : ''}
+                            {exercise.selectedDuration} sn
                             {exercise.sets ? ` • ${exercise.sets} set` : ''}
                             {exercise.reps ? ` • ${exercise.reps} tekrar` : ''}
+                            {exercise.restSec ? ` • ${exercise.restSec} sn dinlenme` : ''}
                           </Text>
                         </View>
                       </View>
@@ -487,6 +646,29 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#111827',
     marginBottom: 16,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 14,
+  },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+  },
+  filterChipActive: {
+    backgroundColor: '#EAF3FF',
+  },
+  filterChipText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#5C568E',
+  },
+  filterChipTextActive: {
+    color: '#5A97F0',
   },
   exercisePickerBox: {
     marginBottom: 14,

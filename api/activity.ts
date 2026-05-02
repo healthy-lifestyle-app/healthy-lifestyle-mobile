@@ -1,6 +1,20 @@
+// api/activity.ts
+
 import { apiRequest } from '@/api/client';
 
-export type WorkoutTypeLabel = 'HIIT' | 'Güç' | 'Yoga' | 'Kardiyo' | 'Özel';
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export type WorkoutTypeLabel =
+  | 'CARDIO'
+  | 'WALKING'
+  | 'HIIT'
+  | 'STRENGTH'
+  | 'PILATES'
+  | 'MOBILITY'
+  | 'YOGA'
+  | 'STRETCHING'
+  | 'CUSTOM';
+
 export type DifficultyLabel = 'Kolay' | 'Orta' | 'Zor';
 
 export type MobileWorkoutExercise = {
@@ -17,6 +31,9 @@ export type MobileWorkoutExercise = {
     category: string | null;
     difficulty: DifficultyLabel;
     defaultDurationSec: number | null;
+    defaultReps?: number | null;
+    defaultSets?: number | null;
+    defaultRestSec?: number | null;
   };
 };
 
@@ -29,6 +46,7 @@ export type MobileWorkout = {
   calories: string;
   description: string;
   isFavorite: boolean;
+  exerciseCount?: number;
   exercises: MobileWorkoutExercise[];
 };
 
@@ -73,8 +91,16 @@ export type ExerciseOption = {
   id: string;
   name: string;
   category: string | null;
-  difficulty: DifficultyLabel;
-  defaultDurationSec: number | null;
+  muscleGroup?: string | null;
+  metValue?: number | null;
+  description?: string | null;
+  instructions?: string | null;
+  difficulty?: string | null;
+  defaultDurationSec?: number | null;
+  defaultReps?: number | null;
+  defaultSets?: number | null;
+  defaultRestSec?: number | null;
+  restSec?: number | null;
 };
 
 export type WaterResponse = {
@@ -94,73 +120,96 @@ export type ActivitySummaryResponse = {
   date: string;
 };
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 function todayString() {
   return new Date().toISOString().split('T')[0];
 }
 
 function toNumber(value: unknown, fallback = 0) {
-  const numberValue = Number(value);
+  const n = Number(value);
 
-  if (!Number.isFinite(numberValue)) {
-    return fallback;
-  }
-
-  return numberValue;
+  return Number.isFinite(n) ? n : fallback;
 }
 
 function mapWorkoutType(type: string): WorkoutTypeLabel {
-  const upper = String(type ?? '').toUpperCase();
-
-  if (upper === 'HIIT') return 'HIIT';
-  if (upper === 'YOGA') return 'Yoga';
-  if (upper === 'WALKING' || upper === 'CARDIO') return 'Kardiyo';
-  if (upper === 'STRENGTH') return 'Güç';
-
-  return 'Özel';
+  switch (String(type ?? '').toUpperCase()) {
+    case 'CARDIO':
+      return 'CARDIO';
+    case 'WALKING':
+      return 'WALKING';
+    case 'HIIT':
+      return 'HIIT';
+    case 'STRENGTH':
+      return 'STRENGTH';
+    case 'PILATES':
+      return 'PILATES';
+    case 'MOBILITY':
+      return 'MOBILITY';
+    case 'YOGA':
+      return 'YOGA';
+    case 'STRETCHING':
+      return 'STRETCHING';
+    case 'GÜÇ':
+      return 'STRENGTH';
+    case 'KARDİYO':
+      return 'CARDIO';
+    case 'YÜRÜYÜŞ':
+      return 'WALKING';
+    case 'MOBİLİTE':
+      return 'MOBILITY';
+    case 'ESNEME':
+      return 'STRETCHING';
+    default:
+      return 'CUSTOM';
+  }
 }
 
 function mapDifficulty(value: string | null | undefined): DifficultyLabel {
-  const upper = String(value ?? '').toUpperCase();
-
-  if (upper === 'EASY' || upper === 'KOLAY') return 'Kolay';
-  if (upper === 'MEDIUM' || upper === 'ORTA') return 'Orta';
-  if (upper === 'HARD' || upper === 'ZOR') return 'Zor';
-
-  return 'Orta';
+  switch (String(value ?? '').toUpperCase()) {
+    case 'EASY':
+    case 'KOLAY':
+      return 'Kolay';
+    case 'MEDIUM':
+    case 'ORTA':
+      return 'Orta';
+    case 'HARD':
+    case 'ZOR':
+      return 'Zor';
+    default:
+      return 'Orta';
+  }
 }
 
 function toDurationLabel(minutes: number | null | undefined) {
   const mins = toNumber(minutes);
 
-  if (mins <= 0) return '0 dk';
-
-  return `${Math.round(mins)} dk`;
+  return mins > 0 ? `${Math.round(mins)} dk` : '0 dk';
 }
 
 function toCaloriesLabel(calories: number | null | undefined) {
   const cals = toNumber(calories);
 
-  if (cals <= 0) return '0 kcal';
-
-  return `${Math.round(cals)} kcal`;
+  return cals > 0 ? `${Math.round(cals)} kcal` : '0 kcal';
 }
 
 function deriveWorkoutDifficulty(
   exercises: Array<{ exercise?: { difficulty?: string | null } }>,
-) {
+): DifficultyLabel {
+  if (exercises.length === 0) return 'Kolay';
+
   let score = 0;
 
   for (const item of exercises) {
     const difficulty = mapDifficulty(item.exercise?.difficulty);
+
     score += difficulty === 'Kolay' ? 1 : difficulty === 'Orta' ? 2 : 3;
   }
 
-  if (exercises.length === 0) return 'Kolay';
+  const avg = score / exercises.length;
 
-  const average = score / exercises.length;
-
-  if (average >= 2.5) return 'Zor';
-  if (average >= 1.7) return 'Orta';
+  if (avg >= 2.5) return 'Zor';
+  if (avg >= 1.7) return 'Orta';
 
   return 'Kolay';
 }
@@ -180,9 +229,19 @@ function normalizeWorkout(raw: any): MobileWorkout {
       exercise: {
         id: String(item?.exercise?.id ?? ''),
         name: item?.exercise?.name ?? 'Egzersiz',
-        category: item?.exercise?.category ?? null,
+        category: item?.exercise?.category
+          ? String(item.exercise.category).toUpperCase()
+          : null,
         difficulty: mapDifficulty(item?.exercise?.difficulty),
-        defaultDurationSec: item?.exercise?.defaultDurationSec ?? null,
+        defaultDurationSec:
+          item?.exercise?.defaultDurationSec ?? item?.durationSec ?? null,
+        defaultReps: item?.exercise?.defaultReps ?? item?.reps ?? null,
+        defaultSets: item?.exercise?.defaultSets ?? item?.sets ?? null,
+        defaultRestSec:
+          item?.exercise?.defaultRestSec ??
+          item?.exercise?.restSec ??
+          item?.restSec ??
+          60,
       },
     }),
   );
@@ -196,7 +255,28 @@ function normalizeWorkout(raw: any): MobileWorkout {
     calories: toCaloriesLabel(raw?.estimatedCalories),
     description: raw?.description ?? 'Açıklama bulunamadı.',
     isFavorite: Boolean(raw?.isFavorite),
+    exerciseCount: normalizedExercises.length,
     exercises: normalizedExercises.sort((a, b) => a.orderNo - b.orderNo),
+  };
+}
+
+function normalizeExerciseOption(raw: any): ExerciseOption {
+  const restSec = raw?.restSec ?? raw?.defaultRestSec ?? 60;
+
+  return {
+    id: String(raw?.id ?? ''),
+    name: raw?.name ?? 'Egzersiz',
+    category: raw?.category ? String(raw.category).toUpperCase() : null,
+    muscleGroup: raw?.muscleGroup ?? null,
+    metValue: raw?.metValue ?? null,
+    description: raw?.description ?? null,
+    instructions: raw?.instructions ?? null,
+    difficulty: raw?.difficulty ?? null,
+    defaultDurationSec: raw?.defaultDurationSec ?? null,
+    defaultReps: raw?.defaultReps ?? null,
+    defaultSets: raw?.defaultSets ?? null,
+    defaultRestSec: restSec,
+    restSec,
   };
 }
 
@@ -230,24 +310,24 @@ function normalizeWaterResponse(response: any): WaterResponse {
 
 function normalizeActivitySummary(response: any): ActivitySummaryResponse {
   if (Array.isArray(response)) {
-    const completedSessions = response.filter(
+    const completed = response.filter(
       (session) => session?.status === 'COMPLETED',
     );
 
-    const totalDurationSec = completedSessions.reduce((sum, session) => {
-      return sum + toNumber(session?.totalDurationSec);
-    }, 0);
+    const totalSec = completed.reduce(
+      (sum, session) => sum + toNumber(session?.totalDurationSec),
+      0,
+    );
 
-    const totalCaloriesBurned = completedSessions.reduce((sum, session) => {
-      return sum + toNumber(session?.totalCaloriesBurned);
-    }, 0);
+    const totalCal = completed.reduce(
+      (sum, session) => sum + toNumber(session?.totalCaloriesBurned),
+      0,
+    );
 
     return {
       totalDurationMinutes:
-        totalDurationSec > 0
-          ? Math.max(1, Math.round(totalDurationSec / 60))
-          : 0,
-      totalCaloriesBurned,
+        totalSec > 0 ? Math.max(1, Math.round(totalSec / 60)) : 0,
+      totalCaloriesBurned: totalCal,
       date: todayString(),
     };
   }
@@ -288,7 +368,9 @@ function normalizeActivitySummary(response: any): ActivitySummaryResponse {
   };
 }
 
-export async function getWorkouts() {
+// ─── API Fonksiyonları ────────────────────────────────────────────────────────
+
+export async function getWorkouts(): Promise<MobileWorkout[]> {
   const response = await apiRequest<any[]>('/api/activity/workouts', {
     method: 'GET',
   });
@@ -296,7 +378,9 @@ export async function getWorkouts() {
   return Array.isArray(response) ? response.map(normalizeWorkout) : [];
 }
 
-export async function getWorkoutById(id: string | number) {
+export async function getWorkoutById(
+  id: string | number,
+): Promise<MobileWorkout> {
   const response = await apiRequest<any>(`/api/activity/workouts/${id}`, {
     method: 'GET',
   });
@@ -304,23 +388,48 @@ export async function getWorkoutById(id: string | number) {
   return normalizeWorkout(response);
 }
 
-export async function getExerciseOptionsFromWorkouts() {
+/**
+ * Backend'de /api/activity/exercises endpoint'i olmadığı için
+ * egzersiz seçeneklerini mevcut /api/activity/workouts response içinden topluyoruz.
+ */
+export async function getExerciseOptions(
+  category?: string,
+): Promise<ExerciseOption[]> {
   const workouts = await getWorkouts();
   const byId = new Map<string, ExerciseOption>();
+  const selectedCategory = category ? String(category).toUpperCase() : null;
 
   for (const workout of workouts) {
     for (const item of workout.exercises) {
-      if (!item.exercise.id) continue;
+      const exercise = item.exercise;
 
-      if (!byId.has(item.exercise.id)) {
-        byId.set(item.exercise.id, {
-          id: item.exercise.id,
-          name: item.exercise.name,
-          category: item.exercise.category,
-          difficulty: item.exercise.difficulty,
-          defaultDurationSec: item.exercise.defaultDurationSec,
-        });
+      if (!exercise?.id) continue;
+
+      const exerciseCategory = exercise.category
+        ? String(exercise.category).toUpperCase()
+        : null;
+
+      if (selectedCategory && exerciseCategory !== selectedCategory) {
+        continue;
       }
+
+      if (byId.has(exercise.id)) continue;
+
+      byId.set(
+        exercise.id,
+        normalizeExerciseOption({
+          id: exercise.id,
+          name: exercise.name,
+          category: exerciseCategory,
+          difficulty: exercise.difficulty,
+          defaultDurationSec:
+            exercise.defaultDurationSec ?? item.durationSec ?? null,
+          defaultReps: exercise.defaultReps ?? item.reps ?? null,
+          defaultSets: exercise.defaultSets ?? item.sets ?? null,
+          defaultRestSec: exercise.defaultRestSec ?? item.restSec ?? 60,
+          restSec: exercise.defaultRestSec ?? item.restSec ?? 60,
+        }),
+      );
     }
   }
 
@@ -329,17 +438,39 @@ export async function getExerciseOptionsFromWorkouts() {
   );
 }
 
+/**
+ * Backend'de tek exercise endpoint'i olmadığı için
+ * şimdilik tüm workout içindeki egzersizlerden arar.
+ */
+export async function getExerciseById(
+  id: string | number,
+): Promise<ExerciseOption> {
+  const exercises = await getExerciseOptions();
+  const found = exercises.find((exercise) => exercise.id === String(id));
+
+  if (!found) {
+    throw new Error('Egzersiz bulunamadı.');
+  }
+
+  return found;
+}
+
+export async function getExerciseOptionsFromWorkouts(): Promise<
+  ExerciseOption[]
+> {
+  return getExerciseOptions();
+}
+
+// ─── Workout oluşturma ────────────────────────────────────────────────────────
+
 type CreateWorkoutInput = {
   name: string;
   type: WorkoutTypeLabel;
   description?: string;
   estimatedDurationMin?: number;
   estimatedCalories?: number;
-  color?: string;
-  icon?: string;
-  isPublic?: boolean;
   exercises: Array<{
-    exerciseId: number;
+    exerciseId: string | number;
     orderNo: number;
     durationSec?: number;
     reps?: number;
@@ -349,66 +480,95 @@ type CreateWorkoutInput = {
   }>;
 };
 
-function toBackendWorkoutType(type: WorkoutTypeLabel) {
-  if (type === 'Güç') return 'STRENGTH';
-  if (type === 'Kardiyo') return 'WALKING';
-  if (type === 'Yoga') return 'YOGA';
-  if (type === 'HIIT') return 'HIIT';
+function toBackendExerciseId(id: string | number): string | number {
+  const raw = String(id);
+  const numeric = Number(raw);
 
-  return 'CUSTOM';
+  return Number.isFinite(numeric) && raw.trim() !== '' ? numeric : raw;
 }
 
-export async function createWorkout(input: CreateWorkoutInput) {
+function cleanNumber(value?: number) {
+  if (value == null) return undefined;
+
+  const numeric = Number(value);
+
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : undefined;
+}
+
+export async function createWorkout(
+  input: CreateWorkoutInput,
+): Promise<MobileWorkout> {
+  const payload = {
+    name: input.name.trim(),
+    type: input.type,
+    description: input.description?.trim() || undefined,
+    estimatedDurationMin: cleanNumber(input.estimatedDurationMin),
+    estimatedCalories: cleanNumber(input.estimatedCalories),
+    exercises: input.exercises.map((exercise) => ({
+      exerciseId: toBackendExerciseId(exercise.exerciseId),
+      orderNo: exercise.orderNo,
+      durationSec: cleanNumber(exercise.durationSec),
+      reps: cleanNumber(exercise.reps),
+      sets: cleanNumber(exercise.sets),
+      restSec: cleanNumber(exercise.restSec),
+      note: exercise.note?.trim() || undefined,
+    })),
+  };
+
+  console.log('CREATE_WORKOUT_PAYLOAD', JSON.stringify(payload, null, 2));
+
   const response = await apiRequest<any>('/api/activity/workouts', {
     method: 'POST',
-    body: {
-      name: input.name,
-      type: toBackendWorkoutType(input.type),
-      description: input.description,
-      estimatedDurationMin: input.estimatedDurationMin,
-      estimatedCalories: input.estimatedCalories,
-      color: input.color,
-      icon: input.icon,
-      isPublic: input.isPublic ?? false,
-      exercises: input.exercises,
-    },
+    body: payload,
   });
 
   return normalizeWorkout(response);
 }
 
+// ─── Workout Session ──────────────────────────────────────────────────────────
+
 export async function startWorkoutSession(workoutId: string | number) {
   return apiRequest<WorkoutSession>('/api/activity/workout-sessions/start', {
     method: 'POST',
-    body: { workoutId: Number(workoutId) },
+    body: {
+      workoutId: String(workoutId),
+    },
   });
 }
 
 export async function pauseWorkoutSession(sessionId: string | number) {
   return apiRequest<WorkoutSession>(
     `/api/activity/workout-sessions/${sessionId}/pause`,
-    { method: 'PATCH' },
+    {
+      method: 'PATCH',
+    },
   );
 }
 
 export async function resumeWorkoutSession(sessionId: string | number) {
   return apiRequest<WorkoutSession>(
     `/api/activity/workout-sessions/${sessionId}/resume`,
-    { method: 'PATCH' },
+    {
+      method: 'PATCH',
+    },
   );
 }
 
 export async function completeWorkoutSession(sessionId: string | number) {
   return apiRequest<WorkoutSession>(
     `/api/activity/workout-sessions/${sessionId}/complete`,
-    { method: 'PATCH' },
+    {
+      method: 'PATCH',
+    },
   );
 }
 
 export async function cancelWorkoutSession(sessionId: string | number) {
   return apiRequest<WorkoutSession>(
     `/api/activity/workout-sessions/${sessionId}/cancel`,
-    { method: 'PATCH' },
+    {
+      method: 'PATCH',
+    },
   );
 }
 
@@ -418,7 +578,9 @@ export async function completeWorkoutSessionExercise(
 ) {
   return apiRequest(
     `/api/activity/workout-sessions/${sessionId}/exercises/${sessionExerciseId}/complete`,
-    { method: 'PATCH' },
+    {
+      method: 'PATCH',
+    },
   );
 }
 
@@ -428,14 +590,20 @@ export async function skipWorkoutSessionExercise(
 ) {
   return apiRequest(
     `/api/activity/workout-sessions/${sessionId}/exercises/${sessionExerciseId}/skip`,
-    { method: 'PATCH' },
+    {
+      method: 'PATCH',
+    },
   );
 }
+
+// ─── Su / Adım / Özet ─────────────────────────────────────────────────────────
 
 export async function getWater(): Promise<WaterResponse> {
   const response = await apiRequest<any>(
     `/api/activity/water?date=${todayString()}`,
-    { method: 'GET' },
+    {
+      method: 'GET',
+    },
   );
 
   return normalizeWaterResponse(response);
@@ -472,18 +640,18 @@ export async function addWater(
   const normalizedGoalMl = Math.max(250, Math.round(toNumber(goalMl, 2500)));
 
   if (normalizedAmount <= 0) {
-    throw new Error('Su miktarı 0’dan büyük olmalıdır.');
+    throw new Error('Su miktarı 0\'dan büyük olmalıdır.');
   }
 
-  const nextConsumedMl = normalizedCurrent + normalizedAmount;
-
-  return saveWater(nextConsumedMl, normalizedGoalMl);
+  return saveWater(normalizedCurrent + normalizedAmount, normalizedGoalMl);
 }
 
 export async function getActivitySummary(): Promise<ActivitySummaryResponse> {
   const response = await apiRequest<any>(
     `/api/activity/summary?date=${todayString()}`,
-    { method: 'GET' },
+    {
+      method: 'GET',
+    },
   );
 
   return normalizeActivitySummary(response);
@@ -492,7 +660,9 @@ export async function getActivitySummary(): Promise<ActivitySummaryResponse> {
 export async function getStepsFromBackend(): Promise<StepsResponse> {
   const response = await apiRequest<any>(
     `/api/activity/steps?date=${todayString()}`,
-    { method: 'GET' },
+    {
+      method: 'GET',
+    },
   );
 
   return {

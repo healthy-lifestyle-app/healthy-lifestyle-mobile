@@ -29,13 +29,30 @@ import ExerciseAnimation from '@/components/exercise/ExerciseAnimation';
 import Screen from '@/components/Screen';
 
 function formatTime(totalSeconds: number) {
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
 
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(
     2,
     '0',
   )}`;
+}
+
+function getExerciseDurationSec(
+  item: WorkoutSession['items'][number] | undefined,
+) {
+  const value = Number(item?.workoutExercise.durationSec);
+
+  return Number.isFinite(value) && value > 0 ? value : 30;
+}
+
+function getRestDurationSec(
+  item: WorkoutSession['items'][number] | undefined,
+) {
+  const value = Number(item?.workoutExercise.restSec);
+
+  return Number.isFinite(value) && value > 0 ? value : 60;
 }
 
 export default function ExerciseSessionScreen() {
@@ -49,19 +66,21 @@ export default function ExerciseSessionScreen() {
   const [loading, setLoading] = useState(true);
 
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [secondsLeft, setSecondsLeft] = useState(30);
   const [isPaused, setIsPaused] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  const [isResting, setIsResting] = useState(false);
+  const [restSecondsLeft, setRestSecondsLeft] = useState(0);
+
   const [cardY, setCardY] = useState(0);
 
   const scrollRef = useRef<ScrollView | null>(null);
 
   const sessionExercises = session?.items ?? [];
   const currentExercise = sessionExercises[currentIndex];
-
-  const [secondsLeft, setSecondsLeft] = useState(
-    currentExercise ? (currentExercise.workoutExercise.durationSec ?? 30) : 30,
-  );
+  const nextExercise = sessionExercises[currentIndex + 1];
 
   const initializeSession = useCallback(async () => {
     if (!workoutId) return;
@@ -71,6 +90,8 @@ export default function ExerciseSessionScreen() {
       setIsCompleted(false);
       setIsSaving(false);
       setIsPaused(false);
+      setIsResting(false);
+      setRestSecondsLeft(0);
 
       const [workoutData, startedSession] = await Promise.all([
         getWorkoutById(workoutId),
@@ -80,6 +101,7 @@ export default function ExerciseSessionScreen() {
       setWorkout(workoutData);
       setSession(startedSession);
       setCurrentIndex(0);
+      setSecondsLeft(getExerciseDurationSec(startedSession.items?.[0]));
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Antrenman başlatılamadı.';
@@ -99,64 +121,55 @@ export default function ExerciseSessionScreen() {
   );
 
   useEffect(() => {
-    if (!currentExercise) {
+    if (!currentExercise || isResting) return;
+
+    setSecondsLeft(getExerciseDurationSec(currentExercise));
+    setIsPaused(false);
+  }, [currentIndex, currentExercise, isResting]);
+
+ const moveToNextExercise = useCallback(() => {
+  const nextIndex = currentIndex + 1;
+  const nextExercise = sessionExercises[nextIndex];
+
+  setIsResting(false);
+  setRestSecondsLeft(0);
+  setCurrentIndex(nextIndex);
+  setSecondsLeft(getExerciseDurationSec(nextExercise));
+  setIsPaused(false);
+}, [currentIndex, sessionExercises]);
+
+  const startRestOrNext = useCallback(() => {
+    const restSec = getRestDurationSec(currentExercise);
+
+    if (restSec > 0) {
+      setRestSecondsLeft(restSec);
+      setIsResting(true);
+      setIsPaused(false);
       return;
     }
 
-    setSecondsLeft(currentExercise.workoutExercise.durationSec ?? 30);
-    setIsPaused(false);
-  }, [currentIndex, currentExercise]);
-
-  const handleSkipExercise = useCallback(async () => {
-    if (!session || !currentExercise || isSaving) return;
-
-    try {
-      setIsSaving(true);
-
-      await skipWorkoutSessionExercise(session.id, currentExercise.id);
-
-      if (currentIndex === sessionExercises.length - 1) {
-        setIsPaused(true);
-        await completeWorkoutSession(session.id);
-        setIsCompleted(true);
-        return;
-      }
-
-      setCurrentIndex((prev) => prev + 1);
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Hareket atlanırken bir sorun oluştu.';
-
-      Alert.alert('Hata', message);
-    } finally {
-      setIsSaving(false);
-    }
-  }, [
-    currentExercise,
-    currentIndex,
-    isSaving,
-    session,
-    sessionExercises.length,
-  ]);
+    moveToNextExercise();
+  }, [currentExercise, moveToNextExercise]);
 
   const handleCompleteExercise = useCallback(async () => {
-    if (!session || !currentExercise || isSaving) return;
+    if (!session || !currentExercise || isSaving || isCompleted) return;
 
     try {
       setIsSaving(true);
 
       await completeWorkoutSessionExercise(session.id, currentExercise.id);
 
-      if (currentIndex === sessionExercises.length - 1) {
-        setIsPaused(true);
+      const isLastExercise = currentIndex === sessionExercises.length - 1;
+
+      if (isLastExercise) {
         await completeWorkoutSession(session.id);
         setIsCompleted(true);
+        setIsPaused(true);
+        setIsResting(false);
         return;
       }
 
-      setCurrentIndex((prev) => prev + 1);
+      startRestOrNext();
     } catch (error) {
       const message =
         error instanceof Error
@@ -170,34 +183,143 @@ export default function ExerciseSessionScreen() {
   }, [
     currentExercise,
     currentIndex,
+    isCompleted,
     isSaving,
+    session,
+    sessionExercises.length,
+    startRestOrNext,
+  ]);
+
+  const handleSkipExercise = useCallback(async () => {
+    if (!session || !currentExercise || isSaving || isCompleted) return;
+
+    try {
+      setIsSaving(true);
+
+      await skipWorkoutSessionExercise(session.id, currentExercise.id);
+
+      const isLastExercise = currentIndex === sessionExercises.length - 1;
+
+      if (isLastExercise) {
+        await completeWorkoutSession(session.id);
+        setIsCompleted(true);
+        setIsPaused(true);
+        setIsResting(false);
+        return;
+      }
+
+      moveToNextExercise();
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Hareket atlanırken bir sorun oluştu.';
+
+      Alert.alert('Hata', message);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [
+    currentExercise,
+    currentIndex,
+    isCompleted,
+    isSaving,
+    moveToNextExercise,
     session,
     sessionExercises.length,
   ]);
 
   useEffect(() => {
-    if (!currentExercise || isPaused || isCompleted || isSaving) {
-      return;
-    }
+  if (!currentExercise || isPaused || isCompleted || isSaving || isResting) {
+    return;
+  }
 
-    if (secondsLeft <= 0) {
+  // Eğer secondsLeft <= 0 ise önce yeni hareketi set et
+  if (secondsLeft <= 0) {
+    const nextIndex = currentIndex + 1;
+    const nextExercise = sessionExercises[nextIndex];
+
+    if (nextExercise) {
+      setCurrentIndex(nextIndex);
+      setSecondsLeft(getExerciseDurationSec(nextExercise));
+    } else {
       handleCompleteExercise();
+    }
+
+    return;
+  }
+
+  const timer = setTimeout(() => {
+    setSecondsLeft((prev) => Math.max(0, prev - 1));
+  }, 1000);
+
+  return () => clearTimeout(timer);
+}, [
+  currentExercise,
+  handleCompleteExercise,
+  isCompleted,
+  isPaused,
+  isResting,
+  isSaving,
+  secondsLeft,
+  currentIndex,
+  sessionExercises,
+]);
+  useEffect(() => {
+    if (!isResting || isCompleted || isSaving) return;
+
+    if (restSecondsLeft <= 0) {
+      moveToNextExercise();
       return;
     }
 
-    const timer = setInterval(() => {
-      setSecondsLeft((prev) => prev - 1);
+    const timer = setTimeout(() => {
+      setRestSecondsLeft((prev) => Math.max(0, prev - 1));
     }, 1000);
 
-    return () => clearInterval(timer);
+    return () => clearTimeout(timer);
   }, [
-    secondsLeft,
-    isPaused,
     isCompleted,
+    isResting,
     isSaving,
-    currentExercise,
-    handleCompleteExercise,
+    moveToNextExercise,
+    restSecondsLeft,
   ]);
+
+  const handlePauseResume = async () => {
+    if (!session || isSaving || isCompleted || isResting) return;
+
+    const nextPaused = !isPaused;
+
+    try {
+      setIsSaving(true);
+
+      if (nextPaused) {
+        await pauseWorkoutSession(session.id);
+      } else {
+        await resumeWorkoutSession(session.id);
+      }
+
+      setIsPaused(nextPaused);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : nextPaused
+            ? 'Antrenman duraklatılamadı.'
+            : 'Antrenman devam ettirilemedi.';
+
+      Alert.alert('Hata', message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSkipRest = () => {
+    if (isSaving) return;
+
+    moveToNextExercise();
+  };
 
   const handleCloseCompletedModal = () => {
     setIsCompleted(false);
@@ -244,13 +366,12 @@ export default function ExerciseSessionScreen() {
   };
 
   const handleFinishSession = async () => {
-    if (!session || isSaving) {
-      return;
-    }
+    if (!session || isSaving) return;
 
     try {
       setIsSaving(true);
       setIsPaused(true);
+      setIsResting(false);
 
       await completeWorkoutSession(session.id);
 
@@ -268,20 +389,10 @@ export default function ExerciseSessionScreen() {
     }
   };
 
-  useEffect(() => {
-    if (!session || isSaving || isCompleted) return;
-
-    if (isPaused) {
-      pauseWorkoutSession(session.id).catch(() => {});
-    } else {
-      resumeWorkoutSession(session.id).catch(() => {});
-    }
-  }, [isPaused, session, isSaving, isCompleted]);
-
   if (loading) {
     return (
       <Screen
-        backgroundColor='#FCFBFF'
+        backgroundColor="#FCFBFF"
         contentStyle={styles.notFoundContainer}
         edges={['top']}
       >
@@ -293,7 +404,7 @@ export default function ExerciseSessionScreen() {
   if (!workout) {
     return (
       <Screen
-        backgroundColor='#FCFBFF'
+        backgroundColor="#FCFBFF"
         contentStyle={styles.notFoundContainer}
         edges={['top']}
       >
@@ -311,7 +422,7 @@ export default function ExerciseSessionScreen() {
   if (!currentExercise) {
     return (
       <Screen
-        backgroundColor='#FCFBFF'
+        backgroundColor="#FCFBFF"
         contentStyle={styles.notFoundContainer}
         edges={['top']}
       >
@@ -328,7 +439,7 @@ export default function ExerciseSessionScreen() {
 
   return (
     <Screen
-      backgroundColor='#FCFBFF'
+      backgroundColor="#FCFBFF"
       contentStyle={styles.safeArea}
       edges={['top']}
     >
@@ -349,115 +460,165 @@ export default function ExerciseSessionScreen() {
         }}
       >
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name='arrow-back' size={22} color='#5C568E' />
+          <Ionicons name="arrow-back" size={22} color="#5C568E" />
         </TouchableOpacity>
 
         <Text style={styles.pageTitle}>Egzersiz</Text>
-        <Text style={styles.pageSubtitle}>Hareket zamanı!</Text>
+        <Text style={styles.pageSubtitle}>
+          {isResting ? 'Kısa bir mola!' : 'Hareket zamanı!'}
+        </Text>
 
         <View
-          style={styles.mainCard}
+          style={[styles.mainCard, isResting && styles.restCard]}
           onLayout={(e) => {
             setCardY(e.nativeEvent.layout.y);
           }}
         >
-          <View style={styles.topIconBox}>
-            <Ionicons name='fitness' size={26} color='#FFFFFF' />
-          </View>
+          {isResting ? (
+            <>
+              <View style={styles.restIconBox}>
+                <Ionicons name="timer" size={32} color="#FFFFFF" />
+              </View>
 
-          <Text style={styles.workoutName}>{workout.name}</Text>
-          <Text style={styles.exerciseCount}>
-            Egzersiz {currentIndex + 1}/{sessionExercises.length}
-          </Text>
-
-          <Text style={styles.currentExerciseTitle}>
-            {currentExercise.workoutExercise.exercise.name ?? 'Egzersiz'}
-          </Text>
-
-          <ExerciseAnimation
-            animationKey={undefined}
-            backgroundColor='#F9E8E2'
-            height={180}
-          />
-
-          <View style={styles.timerCircle}>
-            <Text style={styles.timerText}>{formatTime(secondsLeft)}</Text>
-          </View>
-
-          <View style={styles.buttonRow}>
-            <TouchableOpacity
-              style={[
-                styles.actionButton,
-                styles.stopButton,
-                isSaving && styles.disabledButton,
-              ]}
-              onPress={handleStopSession}
-              disabled={isSaving}
-            >
-              <Text style={styles.stopButtonText}>Durdur</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.actionButton,
-                styles.pauseButton,
-                isSaving && styles.disabledButton,
-              ]}
-              onPress={() => setIsPaused((prev) => !prev)}
-              disabled={isSaving}
-            >
-              <Text style={styles.pauseButtonText}>
-                {isPaused ? 'Devam Et' : 'Duraklat'}
+              <Text style={styles.workoutName}>{workout.name}</Text>
+              <Text style={styles.exerciseCount}>
+                Sıradaki egzersiz: {currentIndex + 2}/{sessionExercises.length}
               </Text>
-            </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[
-                styles.actionButton,
-                styles.doneButton,
-                isSaving && styles.disabledButton,
-              ]}
-              onPress={handleFinishSession}
-              disabled={isSaving}
-            >
-              {isSaving ? (
-                <ActivityIndicator size='small' color='#FFFFFF' />
-              ) : (
-                <>
-                  <Ionicons name='flag' size={18} color='#FFFFFF' />
-                  <Text style={styles.doneButtonText}>Bitir</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
+              <Text style={styles.restTitle}>Set Arası</Text>
 
-          <TouchableOpacity
-            style={[styles.skipLink, isSaving && styles.disabledButton]}
-            onPress={handleSkipExercise}
-            disabled={isSaving}
-          >
-            <Text style={styles.skipLinkText}>
-              {isSaving ? 'Kaydediliyor...' : 'Bu hareketi atla'}
-            </Text>
-          </TouchableOpacity>
+              <View style={styles.timerCircle}>
+                <Text style={styles.timerText}>
+                  {formatTime(restSecondsLeft)}
+                </Text>
+              </View>
 
-          <TouchableOpacity
-            style={[styles.completeLink, isSaving && styles.disabledButton]}
-            onPress={handleCompleteExercise}
-            disabled={isSaving}
-          >
-            <Text style={styles.completeLinkText}>
-              {isSaving ? 'Kaydediliyor...' : 'Bu hareketi tamamla'}
-            </Text>
-          </TouchableOpacity>
+              <Text style={styles.nextExerciseText}>
+                Sonraki:{' '}
+                {nextExercise?.workoutExercise.exercise.name ?? 'Egzersiz'}
+              </Text>
+
+              <TouchableOpacity
+                style={[styles.restSkipButton, isSaving && styles.disabledButton]}
+                onPress={handleSkipRest}
+                disabled={isSaving}
+              >
+                <Text style={styles.restSkipButtonText}>Dinlenmeyi Atla</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <View style={styles.topIconBox}>
+                <Ionicons name="fitness" size={26} color="#FFFFFF" />
+              </View>
+
+              <Text style={styles.workoutName}>{workout.name}</Text>
+              <Text style={styles.exerciseCount}>
+                Egzersiz {currentIndex + 1}/{sessionExercises.length}
+              </Text>
+
+              <Text style={styles.currentExerciseTitle}>
+                {currentExercise.workoutExercise.exercise.name ?? 'Egzersiz'}
+              </Text>
+
+              <ExerciseAnimation
+                animationKey={undefined}
+                backgroundColor="#F9E8E2"
+                height={180}
+              />
+
+              <View style={styles.timerCircle}>
+                <Text style={styles.timerText}>{formatTime(secondsLeft)}</Text>
+              </View>
+
+              <Text style={styles.exerciseMetaText}>
+                {currentExercise.workoutExercise.sets
+                  ? `${currentExercise.workoutExercise.sets} set`
+                  : 'Set belirtilmedi'}
+                {currentExercise.workoutExercise.reps
+                  ? ` • ${currentExercise.workoutExercise.reps} tekrar`
+                  : ''}
+                {currentExercise.workoutExercise.restSec
+                  ? ` • ${currentExercise.workoutExercise.restSec} sn dinlenme`
+                  : ' • 60 sn dinlenme'}
+              </Text>
+
+              <View style={styles.buttonRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.actionButton,
+                    styles.stopButton,
+                    isSaving && styles.disabledButton,
+                  ]}
+                  onPress={handleStopSession}
+                  disabled={isSaving}
+                >
+                  <Text style={styles.stopButtonText}>Durdur</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.actionButton,
+                    styles.pauseButton,
+                    isSaving && styles.disabledButton,
+                  ]}
+                  onPress={handlePauseResume}
+                  disabled={isSaving}
+                >
+                  <Text style={styles.pauseButtonText}>
+                    {isPaused ? 'Devam Et' : 'Duraklat'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.actionButton,
+                    styles.doneButton,
+                    isSaving && styles.disabledButton,
+                  ]}
+                  onPress={handleFinishSession}
+                  disabled={isSaving}
+                >
+                  {isSaving ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Ionicons name="flag" size={18} color="#FFFFFF" />
+                      <Text style={styles.doneButtonText}>Bitir</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.skipLink, isSaving && styles.disabledButton]}
+                onPress={handleSkipExercise}
+                disabled={isSaving}
+              >
+                <Text style={styles.skipLinkText}>
+                  {isSaving ? 'Kaydediliyor...' : 'Bu hareketi atla'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.completeLink, isSaving && styles.disabledButton]}
+                onPress={handleCompleteExercise}
+                disabled={isSaving}
+              >
+                <Text style={styles.completeLinkText}>
+                  {isSaving ? 'Kaydediliyor...' : 'Bu hareketi tamamla'}
+                </Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       </ScrollView>
 
-      <Modal visible={isCompleted} transparent animationType='fade'>
+      <Modal visible={isCompleted} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalIcon}>
-              <Ionicons name='checkmark' size={34} color='#FFFFFF' />
+              <Ionicons name="checkmark" size={34} color="#FFFFFF" />
             </View>
 
             <Text style={styles.modalTitle}>Tebrikler!</Text>
@@ -533,11 +694,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
+  restCard: {
+    backgroundColor: '#EEF7D8',
+  },
   topIconBox: {
     width: 74,
     height: 74,
     borderRadius: 22,
     backgroundColor: '#F7672C',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 18,
+  },
+  restIconBox: {
+    width: 74,
+    height: 74,
+    borderRadius: 22,
+    backgroundColor: '#A8C85A',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 18,
@@ -562,6 +735,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 16,
   },
+  restTitle: {
+    fontSize: 36,
+    fontWeight: '900',
+    color: '#5E8E2E',
+    textAlign: 'center',
+    marginBottom: 18,
+  },
+  nextExerciseText: {
+    fontSize: 16,
+    color: '#4E5567',
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 18,
+  },
   timerCircle: {
     width: 250,
     height: 250,
@@ -578,6 +765,13 @@ const styles = StyleSheet.create({
     fontSize: 54,
     fontWeight: '800',
     color: '#F7672C',
+  },
+  exerciseMetaText: {
+    fontSize: 14,
+    color: '#4E5567',
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 18,
   },
   buttonRow: {
     width: '100%',
@@ -620,6 +814,19 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  restSkipButton: {
+    width: '100%',
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: '#5C568E',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  restSkipButtonText: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '800',
   },
   skipLink: {
     marginTop: 14,
